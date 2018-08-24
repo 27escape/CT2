@@ -1,0 +1,93 @@
+#!/usr/bin/env perl
+# PODNAME: sqltable
+# ABSTRACT: Run an SQL query, style the output as a table
+
+=head1 NAME
+
+sqltable
+
+=head1 SYNOPSIS
+
+    > sqltable ..options..
+
+    to get full help use
+    > sqltable --help
+
+=head1 DESCRIPTION
+
+Run an SQL query, style the output as a table
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+# use Path::Tiny ;
+use App::Basis::ConvertText2::Support ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Run an SQL query, style the output as a table",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        "class=s"   => { desc => 'class for the table', default => 'box' },
+        'width=s'   => { desc => "width for the table", default => '100%' },
+        'caption=s' => 'caption for the table',
+        'title=s'   => 'title for the table',
+        'zebra=s'   => 'Apply zebra banding',
+        'style=s'   => 'Add any additional styling',
+        'align=s'   => { desc => 'Align table, left, centre, right', default => 'left' },
+        'sqlfile=s' => 'SQLite file to run a query against',
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN>  } ;
+    chomp $content ;    # this should be the SQL
+    $content .= ';' if ( $content !~ /;\s?$/ ) ;
+
+    # if we need to check a cache for this item, we need a sig first
+    # my $sig = create_sig( $content, \%opt ) ;
+
+    my $command = "sqlite3 -header $opt{sqlfile} " ;
+    my $resp    = execute_cmd(
+        command     => $command,
+        timeout     => 10,
+        child_stdin => $content
+    ) ;
+
+    if ( $resp->{exit_code} ) {
+        verbose("ERROR: ($resp->{exit_code}), $resp->{merged}") ;
+        exit 1 ;
+    }
+
+    if ( $resp->{stdout} ) {
+        $output = "<p></p>\n~~~~{.table separator='|' legend=1" ;
+        foreach my $arg (qw/class width title caption style align zebra/) {
+            $output .= " $arg='$opt{$arg}'" if ( $opt{$arg} ) ;
+        }
+        $output .= "}\n$resp->{stdout}\n~~~~\n\n" ;
+    } else {
+        $output = "No data from query\n~~~~{.sql}\n$content\n~~~~\n\n" ;
+    }
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

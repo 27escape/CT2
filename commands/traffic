@@ -1,0 +1,93 @@
+#!/usr/bin/env perl
+# PODNAME: traffic
+# ABSTRACT: create an SVG traffic light
+
+=head1 NAME
+
+traffic
+
+=head1 SYNOPSIS
+
+    > traffic ..options..
+
+    to get full help use
+    > $1 --help
+
+=head1 DESCRIPTION
+
+Create an SVG traffic light
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use SVG::TrafficLight ;
+use Path::Tiny ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "create an SVG traffic light",
+    options   => {
+        'has_content=i'  => 'show that there is something echoed in STDIN',
+        'doc_ref=s'      => 'name of the document, this is being called from',
+        'cachedir=s'     => { desc => 'Where to store temp files', required => 1 },
+        'red=s'          => 'red on',
+        'yellow|amber=s' => 'yellow on',
+        'green=s'        => 'green on',
+        'size=i'         => { desc => 'radius of the light bulb', default => 5 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v'      => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+
+my $corner = 20 ;
+if ( $opt{size} < 10 ) {
+    $corner = 3 ;
+} elsif ( $opt{size} < 15 ) {
+    $corner = 5 ;
+} elsif ( $opt{size} < 25 ) {
+    $corner = 10 ;
+} elsif ( $opt{size} < 50 ) {
+    $corner = 15 ;
+}
+
+my $tl = SVG::TrafficLight->new(
+    {   radius   => $opt{size},
+        sequence => [
+            {   red   => $opt{red}    ? 1 : 0,
+                amber => $opt{yellow} ? 1 : 0,
+                green => $opt{green}  ? 1 : 0,
+            },
+        ],
+        corner_radius => $corner,
+    }
+) ;
+$output = $tl->xmlify ;
+# $output =~ s/.*?(<svg)/$1/gsm ;
+# $output =~ s/<!--.*?-->//gsm ;
+
+$opt{doc_ref} ||= "$$" ;
+my $filebase = path($opt{doc_ref})->basename ;
+my $outfile = "$opt{cachedir}/traffic.$filebase.$$.svg" ;
+path($outfile)->spew_utf8($output) ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print "<img src='$outfile' />" ;
+
+
+

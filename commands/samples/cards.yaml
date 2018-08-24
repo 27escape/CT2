@@ -1,0 +1,30 @@
+cards:
+  - title: ":fa:tv: TV info"
+    class: good
+    left: "consecutive<br>**7**"
+    right: "Total<br>**7**"
+    status: "{{.badge subject=':fa:check-circle:' status='Thing 1' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Thing 2' color=green}}"
+
+  - title: ":fa:newspaper-o: News info"
+    class: warn
+    left: "consecutive<br>**7**"
+    right: "Total<br>**7**"
+    status: "{{.badge subject=':fa:check-circle:' status='Thing 1' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Thing 2' color=green}}<br>{{.badge subject=':fa:check-circle:' status='RSS: feed1' color=green}}<br> {{.badge subject=':fa:times-circle:' status='RSS: feed2' color=red700}}"
+
+  - title: ":fa:microchip: IOT Devices"
+    class: primary
+    center: "<br>Total Registrations<br>**1000**"
+    left: "Registrations last month<br>**100**"
+    right: "Registrations this month<br>**300**"
+
+  - title: :fa:cog: Monitors
+    class: good
+    status: "{{.badge subject=':fa:check-circle:' status='Servers' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Performance' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Services' color=green}}"
+
+  - title: :fa:bar-chart: Report Systems
+    class: good
+    status: "{{.badge subject=':fa:check-circle:' status='Thing 1' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Thing 2' color=green}}<br>{{.badge subject=':fa:check-circle:' status='2017-03-02T16:01 UTC' color=green}}"
+
+  - title: :fa:bar-chart: Messages
+    class: good
+    status: "{{.badge subject=':fa:check-circle:' status='Thing 1' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Thing 2' color=green}}<br>{{.badge subject=':fa:check-circle:' status='2017-03-02T16:01 UTC' color=green}}"

@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+# repurposed y2j
+# lazyxml info at http://lazyxml.readthedocs.io/en/latest/lazyxml/dumps.html
+# may have to "sudo easy_install lazyzml" if pip does not do it
+# argparse from https://www.cyberciti.biz/faq/python-command-line-arguments-argv-example/#s4
+# Simple script that converts yaml files into json files while
+# also preserving the order of any dictionary structures used in the yaml file
+
+# used as a ct2 command
+
+import sys
+import argparse
+import codecs
+import locale
+import collections
+import yaml
+from yaml.constructor import Constructor
+import lazyxml
+
+# -----------------------------------------------------------------------------
+# suggestion from https://stackoverflow.com/questions/36463531/pyyaml-automatically-converting-certain-keys-to-boolean-values
+
+def add_bool(self, node):
+    return self.construct_scalar(node)
+
+Constructor.add_constructor(u'tag:yaml.org,2002:bool', add_bool)
+
+# -----------------------------------------------------------------------------
+# Setup support for ordered dicts so we do not lose ordering
+# when importing from YAML
+_mapping_tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
+
+# -----------------------------------------------------------------------------
+
+def dict_representer(dumper, data):
+    return dumper.represent_mapping(_mapping_tag, data.iteritems())
+
+
+def dict_constructor(loader, node):
+    return collections.OrderedDict(loader.construct_pairs(node))
+
+# -----------------------------------------------------------------------------
+# main
+
+parser = argparse.ArgumentParser(description='Convert YAML to XML maintaining keyordering')
+parser.add_argument('--cachedir', help='Location of cachedir',required=True)
+parser.add_argument('--has_content',help='Show that there is content to read in')
+parser.add_argument('--doc_ref',help='Reference to the document using this script')
+parser.add_argument('--linenum',help='Line in document this data came from')
+parser.add_argument('--title',help='Give the XML a title')
+# long and short options/args both only displayed when script called with -h
+parser.add_argument('-v', '--verbose',help='Be more verbose', action='store_true')
+# parser.add_argument('-v',help='Be more verbose', action='store_true')
+args = parser.parse_args()
+
+yaml.add_representer(collections.OrderedDict, dict_representer)
+yaml.add_constructor(_mapping_tag, dict_constructor)
+
+content = ""
+
+sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout)
+
+if args.has_content :
+    # make sure we are using utf8
+    sys.stdin = codecs.getreader("utf-8")(sys.stdin)
+    content = "".join(sys.stdin)
+
+data = yaml.load( content)
+# output = json.dumps(data, indent=2)
+output = lazyxml.dumps( data, encoding="utf-8", indent="  ", cdata=0 )
+
+if args.title :
+    print( "<div class='ol_wrapper'><div class='ol_left'>&nbsp;" + args.title + "</div>\n")
+
+print( "~~~~ { .xml wrap=72}")
+# print output.encode( "utf-8")
+# some issues reading utf8 and writing it out, not sure which is at fault
+sys.stdout.write( output.encode( "utf-8"))
+print( "\n~~~~")
+
+if args.title :
+    print( "\n</div>\n\n")

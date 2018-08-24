@@ -1,0 +1,62 @@
+#!/usr/bin/env perl
+# PODNAME: proposed
+# ABSTRACT: add icon or text to show something is a proposed thing
+
+=head1 NAME
+
+proposed
+
+=head1 SYNOPSIS
+
+    > proposed ..options..
+
+    to get full help use
+    > proposed --help
+
+=head1 DESCRIPTION
+
+add icon or text to show something is a proposed thing
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "add icon or text to show something is a proposed thing",
+    options   => {
+        'has_content=i' => 'add icon or text to show something is a proposed thing',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' => {desc => 'Where to store temp files', required => 1},
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ($content, $output) ;
+# readin the content
+# if ( $opt{has_content} ) {
+#     $content = do { local $/ ; <STDIN> } ;
+#     chomp $content ;
+# }
+
+# $output = "<c:#white.red> :mi:error_outline: proposed </c>" ;
+# $output = "<c:red>:mi:error_outline: proposed</c>" ;
+# $output = "<c:red>:mi:cancel: proposed</c>" ;
+$output = "<font size=-1><c:red>:mi:do_not_disturb_on:proposed</c></font>" ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

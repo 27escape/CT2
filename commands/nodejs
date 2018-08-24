@@ -1,0 +1,45 @@
+#!/usr/bin/env nodejs
+ // run a node application to solve a plugin request for ct2
+
+/* jshint esversion: 6 */
+
+// install the modules that are initially required
+// sudo npm install -g commander get-stdin
+
+// -----------------------------------------------------------------------------
+
+'use strict';
+
+// -----------------------------------------------------------------------------
+// get the library modules brought in
+
+const program = require("commander");
+const getStdin = require("get-stdin");
+
+//-----------------------------------------------------------------------------
+// get the passed arguments
+
+program
+    .arguments("")
+    .option("--has_content <n>", "show that there is something echoed in STDIN", parseInt)
+    .option("-v, --verbose", "Verbose for debugging")
+    .option("--cachedir <path>", "Where to store temp files - required")
+    .option("--doc_ref [file]", "name of the document, this is being called from")
+    .option("--linenum [n]", "line in source document where this element started")
+    .parse(process.argv);
+
+if (program.has_content) {
+    // read from stdin
+    getStdin().then(content => {
+        try {
+            // content should be read into content variable by now
+
+            // process.stdout.write("do not print trailing line feed") ;
+        } catch (e) {
+            // process.stdout.write( "~~~~{.info icon=1 title='Could not parse YAML content'}\n" + e + "\n~~~~\n\n") ;
+            process.stdout.write("ERROR: Could not parse content... " + e + "\n\n");
+        }
+    });
+} else {
+    // so things may not require the content, or do something differently
+}

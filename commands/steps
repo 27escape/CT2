@@ -1,0 +1,80 @@
+#!/usr/bin/env perl
+# PODNAME: steps
+# ABSTRACT: display paragraphs as steps to perform an action
+# idea from https://css-tricks.com/custom-list-number-styling/
+
+=head1 NAME
+
+steps
+
+=head1 SYNOPSIS
+
+    > steps ..options..
+
+    to get full help use
+    > steps --help
+
+=head1 DESCRIPTION
+
+display paragraphs as steps to perform an action
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use App::Basis::ConvertText2::Support ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "display paragraphs as steps to perform an action",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        "width=s"   => { desc => "Width of containg div", default => "100%" },
+        'align=s'   => { desc => 'Align the steps', default => "auto" },
+        'verbose|v' => 'Verbose for debugging',
+
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN>  } ;
+    $content .= "\n" ;
+    # chomp $content ;
+
+    # if we need to check a cache for this item, we need a sig first
+    # my $sig = create_sig( $content, \%opt ) ;
+
+    # $content =~ s/^(\*.*?\n\n)/<p><c:red>**Error: bullets not allowed in steps**<\/c><\/p>/gsm ;
+    # remove bullets, leave as paragraphs
+    $content =~ s/^\s*[\*+-](.*?)\n/$1\n\n/gsm ;
+
+    my $align = "" ;
+    if( lc($opt{align}) eq 'right') {
+        $align = "margin-left:auto; margin-right:0;"
+    } elsif( $opt{align} =~ /auto|center|centre/i) {
+        $align = "margin:auto;";
+    }
+
+    $output = "<div class='steps' style='width:$opt{width};$align'>$content</div>" ;
+}
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

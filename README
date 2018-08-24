@@ -1,0 +1,12 @@
+This directory contains the support files for my magic PDF generator "https://github.com/27escape/App-Basis-ConvertText2"
+
+extra CSS, templates for the various document layouts and commands that can be added to the documents as
+fenced code blocks
+
+the templates are used at the top of a markdown file as so
+
+template: book
+
+most commands have info in them if they need extra things installing and you can try them out on the command line like
+
+./command --has_content=1 --cachedir=/tmp --doc_ref="fred" < samples/command_sample_file

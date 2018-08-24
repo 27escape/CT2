@@ -1,0 +1,323 @@
+#!/usr/bin/env perl
+# PODNAME: fieldtype
+# ABSTRACT: describe a field with a badge and contraints
+
+=head1 NAME
+
+proposed
+
+=head1 SYNOPSIS
+
+    > proposed ..options..
+
+    to get full help use
+    > proposed --help
+
+=head1 DESCRIPTION
+
+describe a field with a badge and contraints
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+# -----------------------------------------------------------------------------
+# complex thing of types and info about those types!
+my %types = (
+    string => {
+        color       => "#black.indigo100",
+        desc        => "A string of characters",
+        constraints => {
+            char => {
+                minlength => 1,
+                maxlength => 1,
+                desc      => ' A single character string'
+            },
+            uri => {
+                desc      => 'A string URI',
+                mustmatch => 'Specification https://tools.ietf.org/html/rfc3986'
+            },
+            tel => {
+                desc => "A string representing a telephone number, though not an exhastive match",
+                pattern => '^+?(\\\\(\\\\d{,3}\\\\)\\)?[ \\\\d]+\\$',
+            },
+            date => {
+                desc    => "A string representing a date, YYYY-MM-DD",
+                pattern => '^\\\\d\{4\}-\\\\d\{2\}-\\\\d\{2\}\$',
+            },
+            time => {
+                desc =>
+                    "A string representing a time, HH:MM, the second component :SS, is optional",
+                pattern => '^\\\\d{2}:\\\\d{2}(:\\\\d{2})?',
+            },
+            datetime => {
+                desc =>
+                    "A string representing a datetime, YYYY-MM-DD\[ T\]HH:MM, :SS optional, as is timezone information,"
+                    . " it is not quite a complete match against a [RFC3339] date and time string",
+                pattern => '^\\\\d{4}-\\\\d{2}-\\\\d{2}\[ T\]\\\\d{4}:\\\\d{2}(:\\\\d{2})?',
+            },
+            ipv4 => {
+                desc    => "A string representing a IPv4 address",
+                pattern => '^\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}$',
+            },
+            ip => {
+                desc    => "A string representing a IPv4 address",
+                pattern => '^\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}\\\\.\\\\d{1,3}$',
+            },
+            ipv6 => {
+# improvements could be made taken from
+# https://stackoverflow.com/questions/1802722/how-can-i-match-ipv6-addresses-with-a-perl-regex#1811212
+                desc    => "A string representing a IPv6 address",
+                pattern => '^(([\\\\da-f]{0,4}:{0,2}){1,8})$'
+            },
+            base64 => { desc => "A base64 encoded binary string", }
+        },
+        params => [qw( minlength maxlength pattern enum default)],
+    },
+    number => {
+        color => "#black.pink200",
+        desc  => "A number, can be positive or negative, can also contain a single decimal point. "
+            . "minimum and maximum, if used, constrain the size of the number",
+        params => [qw( minimum maximum enum  default)],
+    },
+    integer => {
+        color => "#black.pink100",
+        desc  => "An integer number, can be positive or negative. Cannot contain a decimal point"
+            . "minimum and maximum, if used, constrain the size of the integer",
+        constraints => {
+            byte   => { minimum => 0,                    maximum => 255 },
+            int8   => { minimum => -127,                 maximum => 128 },
+            uint8  => { minimum => 0,                    maximum => 255 },
+            int16  => { minimum => -32768,               maximum => 32767 },
+            uint16 => { minimum => 0,                    maximum => 65535 },
+            int32  => { minimum => -2147483648,          maximum => 2147483647 },
+            uint32 => { minimum => 0,                    maximum => 4294967295 },
+            int64  => { minimum => -9223372036854775808, maximum => 9223372036854775807 },
+            uint64 => { minimum => 0,                    maximum => 18446744073709551615 },
+        },
+        order  => [qw( byte int8 uint8 int16 uint16 int32 uint32 int64 uint64)],
+        params => [ qw( minimum maximum enum  default), ]
+    },
+    object => {
+        color => "#black.teal100",
+        desc =>
+            "An object contains key value pairs of a field name referencing value with any valid type.",
+    },
+    array => {
+        color => "teal300",
+        desc =>
+            "An array contains a number of typed fields. The various array items may have different types. "
+            . "minimum and maximum, if used, define the number of array entries",
+        params => [qw( minimum maximum maxitems minitems)]
+        ,    # in this case for the number of items in the array
+    },
+    'array item' => {
+        color => "teal300",
+        desc =>
+            "An example of one or more fields that exists within the array. The type of the item will be included.",
+    },
+    boolean => {
+        color  => "#white.black",
+        desc   => "A true or false value",
+        params => [qw( enum  default)],
+    },
+    null => {
+        color => "#black.gray100",
+        desc  => "A null item, can be ignored",
+    },
+    const => {
+        color => '#black.lightblue100',
+        desc  => "A constant value, no alternatives allowed",
+    },
+    missing => {
+        color => '#white.crimson',
+        desc  => "Type was not specified",
+        ,
+    },
+    type => { color => 'goldenrod', desc => "Type has not yet been decided" },
+) ;
+
+my $initial_explanation = <<EOF_EXPLAIN;
+Within this document the following naming and colour coding conventions will
+be used to explain the various field types that will be passed in JSON formatted data.
+JSON does not \"care\" about the sizes of the fields, these are often constrained by
+using minumum and maximum values. To aid the decoding of the values, hints may be given as
+to how the value may be stored by the receiver of the data, these are given as sub types.
+
+These types and sub-types along with any contraints are
+EOF_EXPLAIN
+
+# -----------------------------------------------------------------------------
+sub _get_color_for_type
+{
+    my ($type) = @_ ;
+    return $types{$type}->{color} || 'goldenrod' ;
+}
+# -----------------------------------------------------------------------------
+sub _get_desc_for_type
+{
+    my ($type) = @_ ;
+    return $types{$type}->{desc} ;
+}
+# -----------------------------------------------------------------------------
+sub _get_order_for_type
+{
+    my ($type) = @_ ;
+    return $types{$type}->{order}
+        ? @{ $types{$type}->{order} }
+        : sort keys %{ $types{$type}->{constraints} } ;
+}
+# -----------------------------------------------------------------------------
+sub _get_constraints_for_type
+{
+    my ($type) = @_ ;
+    return $types{$type}->{constraints} ? %{ $types{$type}->{constraints} } : () ;
+}
+
+# -----------------------------------------------------------------------------
+sub make_shield
+{
+    my ( $name, $status, $color ) = @_ ;
+    $status .= "\\ " if ( $status =~ m/ $/ ) ;
+    return "{{.shield subject='\\ $name' status='\\ $status' color='$color' size='80%'}}" ;
+}
+
+# -----------------------------------------------------------------------------
+# describe the limitations of this type field
+
+sub add_limits
+{
+    my ( $type, $format, $params ) = @_ ;
+    my %constraints = _get_constraints_for_type($type) ;
+    my $output      = "" ;
+
+    foreach my $allow ( @{ $types{$type}->{params} } ) {
+        # my $v =
+        #     defined $params->{$allow}
+        #     ? $params->{$allow}
+        #     : ( $format &&
+        #     defined $constraints{$format}->{$allow} ? $constraints{$format}->{$allow} : undef ) ;
+
+        my $v ;
+        if ( defined $params->{$allow} ) {
+            $v = $params->{$allow} . "" ;
+        }
+
+        $output
+            .= ( $output ? ", " : "" ) . "$allow: <c:#midnightblue.aliceblue><b>" . $v . "</b></c>"
+            if ( defined $v ) ;
+    }
+
+    if ($output) {
+        $output = "\\ <font size=-2>$output</font> " ;
+    }
+
+    return $output ;
+}
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "describe a field with a badge and contraints",
+    options   => {
+        'has_content=i' => 'describe a field with a badge and contraints',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'name|field=s'  => { desc => 'name of the field', default => 'MISSING NAME' },
+        'type=s'        => {
+            desc    => 'type of the field, one of ' . join( ', ', map {"'$_'"} sort keys %types ),
+            default => 'missing',
+        },
+        'format=s'           => 'add in some extra format information',
+        'minimum|min=i'      => "minimum value for a numeric type",
+        'maximum|max=i'      => "maximum value for a numeric type",
+        'minlength|minlen=i' => "min number of characters for a string type",
+        'maxlength|maxlen=i' => "max number of characters for a string type",
+        'minitems=i' => "min number of elements in an array",
+        'maxitems=i' => "max number of elements in an array",
+        'pattern=s'          => "regular expression that a string type must validate against",
+        'enum=s'             => "CSV formated list of valid items",
+        'default=s'          => "Default value for the give field type",
+        'key=s'              => 'generate a key rather than the badge',
+        'required=s'         => 'indicate that this field is required',
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN>  } ;
+    chomp $content ;
+}
+
+if ( $opt{key} ) {
+    # explain what all the fields are
+    $output = "$initial_explanation\n\n" ;
+    foreach my $type ( sort keys %types ) {
+        $output .= "* " . make_shield( $type, $type, _get_color_for_type($type) ) . "\n" ;
+        # add explain
+        my $desc = _get_desc_for_type($type) ;
+        $output .= "    * $desc\n" if ($desc) ;
+        # add constraints
+        my %constraints = _get_constraints_for_type($type) ;
+        if (%constraints) {
+            foreach my $o ( _get_order_for_type($type) ) {
+                my $desc = $constraints{$o}->{desc} ;
+                delete $constraints{$o}->{desc} ;
+                $output
+                    .= "    * "
+                    . make_shield( 'sub-type', "$type:$o", _get_color_for_type($type) )
+                    . " " ;
+                $output .= "\n    * $desc" if ($desc) ;
+                $output .= "\n" ;
+                if ( keys %{$constraints{$o}} ) {
+                    $output .= "        * " . join(
+                        "\n        *  ",
+                        map {
+                                  "<font size=-2>$_: <c:#midnightblue.aliceblue><b>"
+                                . $constraints{$o}->{$_}
+                                . "</b></c></font>"
+                            }
+                            sort keys %{ $constraints{$o} }
+                    ) . "\n" ;
+                }
+
+            }
+        }
+    }
+
+    $output .= "\n\n" ;
+} else {
+    $opt{enum} = "false, true" if ( !$opt{enum} && $opt{type} eq 'boolean' ) ;
+    my $status      = $opt{type} ;
+    my %constraints = _get_constraints_for_type( $opt{type} ) ;
+    if ( $opt{format} && %constraints ) {
+        $status .= ":" . $opt{format} ;
+    }
+    $output = make_shield( $opt{name}, $status, _get_color_for_type( $opt{type} ) ) ;
+    $output .= " <font size=-1><c:green700>:mi:check_box:required</c></font>"
+        if ( $opt{required} ) ;
+    # add in any type specific constraint information, or passed in
+    # minimum maximum minlength maxlength pattern
+    if ( $opt{format} ) {
+        $opt{pattern} ||= $types{ $opt{type} }->{constraints}->{ $opt{format} }->{pattern} ;
+    }
+    $output .= add_limits( $opt{type}, $opt{format}, \%opt ) ;
+}
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+
+

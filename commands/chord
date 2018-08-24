@@ -1,0 +1,229 @@
+#!/usr/bin/env nodejs
+
+// https: //medium.com/@paul_irish/debugging-node-js-nightlies-with-chrome-devtools-7c4a1b95ae27
+
+// run a node application to solve a plugin request for ct2
+// draw a SVG chord chart based on nivo.rocks http://nivo.rocks/#/chord
+/* jshint esversion: 6 */
+
+// node upgrade to latest stable
+// sudo npm cache clean -f
+// sudo npm install -g n
+// sudo n stable
+
+// install the modules that are initially required
+// sudo npm install -g commander get-stdin
+// sudo npm i -g prop-types react react-dom @nivo/chord request csv-parse
+
+// use the HTTP API POST /charts/chord with the following JSON data
+// see http://nivo.rocks/#/chord/api
+// api https://nivo-api.herokuapp.com
+
+// IDEALLY need to be running a docker container
+
+// otherwise to get the api running
+// cd ~/external_git
+// git clone https://github.com/plouc/nivo-api
+// cd nivo-api
+// npm install
+// node src/app.js or ... get clever
+// sudo npm install -g pm2@latest
+// pm2 start src/app.js --name "nivo-api"
+
+
+// responds with data to point to a URL that is the generated SVG
+// {
+//   "id": "8b472f1d-5f22-40ed-aa3c-695c66052292",
+//   "url": "https://nivo-api.herokuapp.com/r/8b472f1d-5f22-40ed-aa3c-695c66052292"
+// }
+
+
+// -----------------------------------------------------------------------------
+
+'use strict';
+
+// -----------------------------------------------------------------------------
+// get the library modules brought in
+
+const program = require("commander");
+const getStdin = require("get-stdin");
+const csvparse = require("csv-parse/lib/sync");
+
+// -----------------------------------------------------------------------------
+const NIVO_URL = 'http://localhost:3030/charts/chord'; // "https://nivo-api.herokuapp.com/charts/chord";
+const DEFAULT_COLORSET = "d310";
+// make life simple, valid set names are keys in the hash
+const colorsets = {
+    nivo: 1,
+    d310: 1,
+    d320: 1,
+    d320b: 1,
+    d320c: 1,
+    accent: 1,
+    dark2: 1,
+    paired: 1,
+    pastel1: 1,
+    pastel2: 1,
+    set1: 1,
+    set2: 1,
+    set3: 1,
+};
+
+let nivo_data = {
+    width: 700,
+    height: 700,
+    matrix: {}, // fill in from built data
+    keys: [], // fill in from csv headers
+    margin: {
+        top: 20,
+        right: 20,
+        bottom: 20,
+        left: 20
+    },
+    padAngle: 0.02,
+    innerRadiusRatio: 0.96,
+    innerRadiusOffset: 0.09,
+    arcOpacity: 1,
+    arcBorderWidth: 1,
+    arcBorderColor: "inherit:darker(0.4)",
+    ribbonOpacity: 0.5,
+    ribbonBorderWidth: 1,
+    ribbonBorderColor: "inherit:darker(0.4)",
+    colors: "dark2",
+    colorBy: "depth",
+    enableLabel: true,
+    label: "id",
+    labelOffset: 12,
+    labelRotation: 0,
+    labelTextColor: "inherit:darker(1)",
+    isInteractive: false,
+    legends: {
+        // [{
+        anchor: "bottom",
+        direction: "row",
+        translateY: 70,
+        itemWidth: 80,
+        itemHeight: 14,
+        symbolSize: 14,
+        symbolShape: "circle"
+            // }]
+    }
+};
+
+
+// -----------------------------------------------------------------------------
+// if requested set does not exist then we will use the default
+function getColorset(set) {
+    if (!colorsets[set]) {
+        set = DEFAULT_COLORSET;
+    }
+
+    return set;
+}
+
+// -----------------------------------------------------------------------------
+// fix any missing data fields to 0
+function fix_data(value, index, ar) {
+
+}
+
+//-----------------------------------------------------------------------------
+// convert input content based on its format
+
+function parse_data(content, separator, legends) {
+    let options = {
+        delimitor: separator,
+        relax_column_count: true,
+        trim: true,
+        auto_parse: true,
+        skip_lines_with_empty_values: true
+    };
+    if (legends) {
+        options.colunns = true;
+    }
+    let data = csvparse(content, options);
+
+    if (!legends) {
+        // need to do something else with the data
+        console.log(data);
+        // count rows, add in at start of array a new row with
+        // data1, data2 etc against number of rows
+    }
+
+    // go through each row, adding/removing extra fields to make things square 
+    data.data.forEach(fix_data);
+
+
+
+    return data;
+}
+
+// -----------------------------------------------------------------------------
+// fetch a SVG from nivo url based on image
+// blocking call to get URL contents
+// request method from https://stackoverflow.com/questions/27190447/pass-json-to-http-post-request#27190736
+
+function nivo_chord_svg(url, data) {
+    const request = require('request');
+    let svg_data = "";
+
+    let post_data = {
+        url: url,
+        json: true,
+        body: data
+    };
+
+    request.post(post_data, function (error, response, body) {
+        // if there was no error, then we can do another request to get the data
+        if (!error && response.statusCode == 200) {
+            console.log(body.id); // Print the Id of the request to nivo
+            console.log(body.url); // Print the SVG url
+
+            let get_data = {
+                url: body.url
+            };
+            request.get(get_data, function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    svg_data = body;
+                } else {
+                    // should we throw the error ?
+                }
+
+            });
+        } else {
+            // should we throw the error ?
+        }
+    });
+
+    return svg_data;
+}
+
+//-----------------------------------------------------------------------------
+// get the passed arguments
+
+program
+    .arguments("")
+    .option("--has_content <n>", "show that there is something echoed in STDIN", parseInt)
+    .option("-v, --verbose", "Verbose for debugging")
+    .option("--cachedir <path>", "Where to store temp files - required")
+    .option("--doc_ref [file]", "name of the document, this is being called from")
+    .option("--separator [n]", "CSV separator, defaults to '|'", String, "|")
+    .option("--colorset [n]", "D3 colorset to use, defaults to " + DEFAULT_COLORSET, String, DEFAULT_COLORSET)
+    .option("--legends [n]", "First line of CSV provides legend/field info ", String, "")
+    .option("--width [n]", "Width of the generated SVG, either px or %", String, "100%")
+    .option("--linenum [n]", "line in source document where this element started")
+    .parse(process.argv);
+
+if (program.has_content) {
+    // read from stdin
+    getStdin().then(content => {
+        let colorset = getColorset(program.colorset);
+
+        let data = parse_data(content, program.separator, program.legends);
+
+
+        // process.stdout.write("do not print trailing line feed") ;
+    });
+} else {
+    // so things may not require the content, or do something differently
+}

@@ -1,0 +1,11 @@
+15: **Promo** #blue.yellow
+14: *Hidden* #.blue
+13-12   : Unused #green
+11-8: ChannelType #.pink
+7: ServiceType #.yellow
+6: Unused
+5: AppService #.red
+4-3: RecordingType #.lightgreen
+2: HD #.teal500
+1: Encrypt  #.purple
+0: ParentalGuidance #.orange

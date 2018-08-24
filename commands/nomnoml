@@ -1,0 +1,94 @@
+#!/usr/bin/env perl
+# PODNAME: nomnoml
+# ABSTRACT: draw nomnoml diagram from http://www.nomnoml.com/
+# install nomnoml using "sudo npm install -g nomnoml"
+# see https://github.com/skanaar/nomnoml
+
+=head1 NAME
+
+nomnoml
+
+=head1 SYNOPSIS
+
+    > nomnoml ..options..
+
+    to get full help use
+    > nomnoml --help
+
+=head1 DESCRIPTION
+
+draw nomnoml diagram from http://www.nomnoml.com/
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use App::Basis::ConvertText2::Support ;
+use Path::Tiny ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "draw nomnoml diagram from http://www.nomnoml.com/",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'size=s'    => { desc => 'Optional size of the image, eg 100x200 or 100%' },
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+$output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+    my $size = "" ;
+    if ( $opt{size} ) {
+        if ( $opt{size} =~ /^\s?(\d+)\s?x\s?(\d+)\s?$/ ) {
+            $size = "width='$1' height='$2'" ;
+        } else {
+            $size = "width='$opt{size}'" ;
+        }
+    }
+
+    # if we want to check for a prebuilt version, we can use a sig
+    my $sig     = create_sig( $content, \%opt ) ;
+    my $base    = "$opt{cachedir}/nomnoml.$sig" ;
+    my $nomfile = $base . '.nom' ;
+    my $svgfile = $base . '.svg' ;
+
+    if ( !-f $svgfile ) {
+        path($nomfile)->spew_utf8($content) ;
+        my $command = "nomnoml '$nomfile' '$svgfile'" ;
+        verbose("Command is [$command]") ;
+        # run nomnoml
+        my $resp = execute_cmd(
+            command => $command,
+            timeout => 10
+        ) ;
+
+        if ( $resp->{exit_code} ) {
+            verbose( "ERROR: ($resp->{exit_code}), $resp->{merged}") ;
+            exit 1 ;
+        }
+    }
+
+    $output = "<img src='$svgfile' $size/>" ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+

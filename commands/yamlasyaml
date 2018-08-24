@@ -1,0 +1,58 @@
+#!/usr/bin/env perl
+# PODNAME: yamlasyaml
+# ABSTRACT: create a YAML fragment, needed to make use of file=
+
+=head1 NAME
+
+yamlasyaml
+
+=head1 SYNOPSIS
+
+    > yamlasyaml ..options..
+
+    to get full help use
+    > yamlasyaml --help
+
+=head1 DESCRIPTION
+
+create a YAML fragment, needed to make use of file=
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Create yamlasyaml based bash fragment",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' =>
+            { desc => 'Where to store temp files', required => 1 },
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+
+
+my ( $content, $output ) ;
+
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+}
+$output = '~~~~ { .yaml }' . "\n$content\n\n~~~~\n" ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+

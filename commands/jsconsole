@@ -1,0 +1,98 @@
+#!/usr/bin/env perl
+# PODNAME: jsconsole
+# ABSTRACT: Create Javascript code block, run it, show output
+
+=head1 NAME
+
+jsconsole
+
+=head1 SYNOPSIS
+
+    > jsconsole ..options..
+
+    to get full help use
+    > jsconsole --help
+
+=head1 DESCRIPTION
+
+Create Javascript code block, run it, show output
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use Path::Tiny ;
+use App::Basis::ConvertText2::Support ;
+use Encode qw( encode decode) ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Create Javascript code block, run it, show output",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s' =>
+            { desc => 'name of the document, this is being called from', default => "jsconsole$$" },
+        'cachedir=s' => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i"  => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v'  => 'Verbose for debugging',
+        'nooutput=s' => 'Do not show the output, but still run the command',
+        'name=s'     => 'Name the cache output JS file, useful if you want it later',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN>  } ;
+    chomp $content ;    # this should be the SQL
+                        # if we need to check a cache for this item, we need a sig first
+    my $header = "" ;
+    if ( $content !~ /use.*?\bstrict\b/ ) {
+        $header .= "\"use strict\" ;\n" ;
+    }
+    # if ( $content !~ /use.*?\esversion\b/ ) {
+    #     $header .= "\"use esversion: 6\" ;\n" ;
+    # }
+    $content = "$header\n$content" if ($header) ;
+    my $sig = create_sig( $content, \%opt ) ;
+    my $docname = path( $opt{doc_ref} )->basename ;
+    my $jsfile =
+        "$opt{cachedir}/" . ( $opt{name} ? "$opt{name}.js" : "javascript.$docname.$sig.js" ) ;
+    verbose("cachefile is $jsfile") ;
+    path($jsfile)->spew_utf8($content) ;
+
+    $output = "~~~~{.javascript}\n$content\n~~~~" ;
+
+    my $command = "node $jsfile" ;
+    verbose("command $command") ;
+    my $resp = execute_cmd(
+        command => $command,
+        timeout => 10,
+    ) ;
+
+    if ( $resp->{exit_code} ) {
+        $output
+            .= "~~~~{.error icon=1 title='ERROR:'}\n<pre>($resp->{exit_code})\n$resp->{merged}</pre>\n~~~~"
+            ;
+    } elsif ( $resp->{merged} && !$opt{nooutput} ) {
+        # output only where there is something
+        # need to handle UTF-8 from the merged output
+        my $txt = decode( "UTF-8", $resp->{merged} ) ;
+        $output .= "\n~~~~{.console icon=1 title='console output'}\n$txt\n~~~~" ;
+    }
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print "$output\n<p></p>\n" ;
+
+
+
+

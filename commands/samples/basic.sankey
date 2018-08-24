@@ -1,0 +1,18 @@
+Resolved |          |    |              | Status
+Fixed   |           |    |              | Status
+
+UI     | Iphone       | 1  | orange   | Issues | resolved
+UI     | Iphone       | 12 | green    | Issues | fixed
+UI     | android      | 4  | red   | Issues | FRED
+Screen     | Iphone       | 1  | orange   | Issues | resolved
+Screen     | android      | 1  | green    | Issues | fixed
+Price     | Iphone       | 2  | green    | Issues | fixed
+Price     | Iphone       | 1  | orange    | Issues | resolved
+
+
+android    | Resolved  | 1  | green        | Product |resolved
+android    | Fixed     | 4  | orange       | Product | fixed
+Iphone     | Resolved  | 9  | green        | Product |resolved
+Iphone     | Fixed     | 6  | orange       | Product | fixed
+
+

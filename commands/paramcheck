@@ -1,0 +1,18 @@
+#!/bin/bash
+# just a command to output the parameters passed to
+#
+
+block=$(basename $0)
+echo "block **$block**"
+echo "<p>arguments $@</p>"
+echo "data is
+"
+
+# read all the lines from STDIN and write them out
+while read -r data ; do
+    # we need to split lines with '\n' in them into multiple lines
+    IFS=$'\n'  read -a lines <<< "$data"
+    for line in "${lines[@]}" ; do
+        echo "$line"
+    done
+done < /dev/stdin

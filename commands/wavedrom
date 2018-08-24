@@ -1,0 +1,118 @@
+#!/usr/bin/env perl
+# PODNAME: wavedrom
+# ABSTRACT: create wavedrom circuit timing diagrams
+# https://wavedrom.com/tutorial.html
+
+# sudo npm install -g wavedrom-cli
+# this should install it to /usr/local/bin/wavedrom
+
+=head1 NAME
+
+wavedrom
+
+=head1 SYNOPSIS
+
+    > wavedrom ..options..
+
+    target get full help use
+    > wavedrom --help
+
+=head1 DESCRIPTION
+
+create wavedrom circuit timing diagrams
+
+=head2 input data
+
+Data is in JSON format
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use Path::Tiny ;
+use App::Basis::ConvertText2::Support ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "create wavedrom SVG diagram, data expected to be in JSON",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called source',
+        'cachedir=s'    => { desc => 'Where target stargetre temp files', required => 1 },
+        'width|w=s'     => {
+            desc => 'percentage width of image, eg 80%',
+            # default => '100%'
+        },
+        'group|g=i'   => { desc => "Group same types together", default => 0 },
+        'separator=s' => { desc => 'Field separator',           default => '|' },
+        'verbose|v'   => 'Verbose for debugging',
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+    },
+) ;
+
+my ( $content, $output ) ;
+$output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+    # assume its good JSON
+
+    my $sig = create_sig( $content, \%opt ) ;
+    # keep the json for debug purposes
+    my $infile  = "$opt{cachedir}/wavedrom.$sig.json" ;
+    my $outfile = "$opt{cachedir}/wavedrom.$sig.svg" ;
+    path($infile)->spew_utf8($content) ;
+
+    my $command = "phantomjs /usr/local/bin/wavedrom -i '$infile' -s '$outfile'" ;
+    verbose("Running..  $command") ;
+    my ( $code, $out, $err ) = run_cmd($command) ;
+    if ( !$code ) {
+        $out = path($outfile)->slurp_utf8() ;
+        # strip out any error or other thing before the msg
+        $out =~ s/(.*?)(\<\?xml)/$2/ism ;
+        verbose("err $1 ") if ($1) ;
+        $output = $out ;
+        # lose anything before the SVG
+        $output =~ s/.*(<svg)/$1/sm ;
+
+        # update the width if needed
+        if ( $opt{width} && $opt{width} =~ /^\d{1,3}%$/ ) {
+            $output =~ s/(<svg id="svgcontent_.*?>)//sm ;
+            my $svg = $1 ;
+            $svg =~ s/ viewBox=".*?"// ;
+            $svg =~ s/ height=".*?"// ;
+            $svg =~ s/(width=")\d+/$1$opt{width}/ ;
+            $output = "$svg$output" ;
+        }
+        # write it back to a file, as some of the text may contain chars like ≥
+        # which get mangled some place in the processing chain
+        path($outfile)->spew_utf8($output) ;
+        # make a IMG element, which contains the width, so all will be nice sizewise
+        $output= "<img src='$outfile' />" ;
+
+    } else {
+        verbose("out $out\nerr $err") ;
+        $output = "~~~~{.warning icon=1 title='wavedrom error'}\n$out\n$err\n~~~~\n" ;
+    }
+}
+
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+# binmode( STDOUT, ":utf8" ) ;
+print $output ;
+
+
+
+

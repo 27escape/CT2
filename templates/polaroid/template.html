@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>%TITLE%</title>
+        <meta name="Created" content="%DATE%" />
+        <meta name="Author" content="%AUTHOR%" />
+        <meta name="Copyright" content="%COPYRIGHT%" />
+        <meta name="summary" content="%SUMMARY%" />
+        <meta name="keywords" content="%KEYWORDS%" />
+        <meta name="revision" content="%REVISION%" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+        %JAVASCRIPT%
+
+        <style type="text/css">
+            @media print {
+                @page {
+                    margin: 0pt 0pt 0pt 0pt ;
+                }
+            }
+
+            %CSS%            
+
+            blockquote {
+                font-family: helvetica;
+                font-style: italic;
+                font-size: 14px;
+                margin: 1em 3em;
+                padding: .5em 1em;
+                border-left: 5px solid #fce27c;
+                background-color: #f6ebc1; 
+            }
+
+            blockquote p {
+                margin: 0; 
+            }
+            /* things to do with numbering headings*/
+            h1 {
+                display: none;
+            }
+            h2, h3, p  {
+                position: absolute;
+                color: black;
+                background-color: white;
+                border: 1px solid black;
+                margin: 0px;
+                z-index: 20;
+                width: 100%;
+                height: 120px;
+                top: 460px;
+            }
+
+            body {
+                font-family: sans-serif;
+            }
+        </style>
+    </head>
+    <body>
+      <div class='content'>
+        %_CONTENTS_%
+      </div>
+    </body>
+</html>

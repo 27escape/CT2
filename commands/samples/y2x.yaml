@@ -1,0 +1,19 @@
+asset:
+  filename: "123456_abcwarriors.ts"
+  trailer_id: 23454
+  vod_type: svod
+  type: film
+  image: "123456_abcwarriors.png"
+  avail_from: "2018-03-28"
+  avail_to: "2019-03-27"
+  metadata:
+    title:
+      en: ABC Warriors
+    synopsis:
+      en: Introduces Joe Pineapples and Happy Shrapnel
+    rating: "TV-C"
+    parental: true
+    genre: [ scifi, action]
+    duration: 3600
+  priority: true
+

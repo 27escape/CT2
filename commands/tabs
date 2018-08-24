@@ -1,0 +1,96 @@
+#!/usr/bin/env perl
+# PODNAME: pagn
+# ABSTRACT: $2
+
+=head1 NAME
+
+pagn
+
+=head1 SYNOPSIS
+
+    > pagn ..options..
+
+    to get full help use
+    > pagn --help
+
+=head1 DESCRIPTION
+
+Description of what your application does
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Create a TAB or pagnate structure",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' =>
+            { desc => 'Where to store temp files', required => 1 },
+        'class=s' => 'class to apply to the outside div',
+        'active=s' => { desc => 'class to apply to the active item', default=> 'active'},
+        'pre=s' => 'text before pagnated block',
+        'verbose|v' => 'Verbose for debugging',
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+} else {
+    $content = join( ", ", @ARGV) ;
+}
+
+my ($type, $wrap) ;
+$opt{class} ||="" ;
+
+$opt{pre} ||= "" ;
+
+if( get_program() eq 'pagn') {
+    # $wrap = 'span' ;
+    $wrap = 'span' ;
+    $type = "pagn" ;
+    $content = ":fa:angle-double-left:,$content, :fa:angle-double-right:" ;
+    $output = "$opt{pre} <$wrap class='pagenate $opt{class}'>" ;
+} else {
+    $wrap = 'div' ;
+    $type = "tab" ;
+    $output = "<$wrap class='tabs $opt{class}'>" ;
+}
+
+foreach my $ele ( split( /,\s?/, $content ) ) {
+    next if( !$ele) ;
+    $ele = ':fa:ellipsis-h:' if( $ele eq '...');
+    my $class = $type ;
+    if ( $ele =~ s/^!// ) {
+        $class .= " $opt{active}" ;
+    }
+    $output .= "<$wrap class='$class'>$ele</$wrap>" ;
+    # $output .= "&nbsp;&nbsp; " if( $type eq 'tab') ;
+    # got an issue with non-breaking spaces emulating a CR without a LF
+    # either way not good, just want some spacing around the tab items
+    # $output .= "\\ \\ " if( $type eq 'tab') ;
+}
+
+$output .= "</$wrap>" ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

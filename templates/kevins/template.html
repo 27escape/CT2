@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>%TITLE%</title>
+        <meta name="Created" content="%DATE%" />
+        <meta name="Author" content="%AUTHOR%" />
+        <meta name="Copyright" content="%COPYRIGHT%" />
+        <meta name="summary" content="%SUMMARY%" />
+        <meta name="keywords" content="%KEYWORDS%" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+        %JAVASCRIPT%
+
+        <style type="text/css">
+            /* setup for printing */
+            @media print {
+                @page {
+                    @top {
+                        margin: -10pt 0pt 0pt -30pt ;
+                        content: url(file://~/.ct2/templates/kevin/kevin_small_hdr.png) ;
+                    }
+                    @bottom-right { content: counter(page) " / " counter(pages) ;}
+                    @bottom-left {content: "%DATE%";}
+                    @bottom { content: "© %COPYRIGHT%";}
+                }
+                /*no need for a header, its taken care of*/
+                div.header {
+                    display: none ;
+                }
+            }
+            /* setup for web */
+            @media screen {
+                div.header {
+                    background-color: #3D1F5B;
+                }
+                #toc a {
+                    text-decoration: none ;
+                    color: #3D1F5B;
+                }
+            }
+
+            %CSS%
+            /* remove some header stuff from front page */
+/*            @page:first {
+                @top {content: normal; }
+                @bottom-right { content: normal; ;}
+                @bottom { content: normal; ;}
+                @bottom-left { content: normal; ;}
+            }
+*/
+            /* things to do with numbering headings*/
+            blockquote {
+                font-family: helvetica;
+                font-style: italic;
+                font-size: 14px;
+                margin: 1em 3em;
+                padding: .5em 1em;
+                border-left: 5px solid #fce27c;
+                background-color: #f6ebc1;
+            }
+
+            blockquote p {
+                margin: 0;
+            }
+            h1 {
+                display: none;
+            }
+            h2, h3 {
+                color: #3D1F5B;
+            }
+            h4, h5, h6 {
+                font-weight: normal;
+            }
+
+            body {font-family: sans-serif;}
+            /* tables*/
+            table { page-break-inside: avoid ;}
+            table.md {
+                border: 1px black solid;
+                border-collapse: collapse;
+                border-spacing: 0px;
+                padding-bottom:20px;
+            }
+            table.md th {
+                background-color:yellowgreen;
+                font-weight: bold;
+                border: 1px black solid;
+            }
+            table.md tr { vertical-align:top;}
+            table.md tr.odd { background-color: white;}
+            table.md tr.even {background-color: #F0FFF0;}
+            table.md td {
+                border: 1px black solid;
+                padding-left:10px;
+                padding-right:10px;
+            }
+            table.footer { font-size: 10px; width: 100%;}
+            table.footer td.commercial {
+                font-weight: bold;
+                font-size: 12px;
+                text-align: center;
+            }
+            /* all boxed tables will be styled this way */
+            table.box
+            {
+                margin: 5px;
+                text-align: left;
+                border-collapse: collapse;
+            }
+            table.box tr { vertical-align:top;}
+            table.box th
+            {
+                padding: 0px 10px 0px 10px;
+                background-color: #ccc;
+                font-weight: bold;
+                text-align: center;
+                border: 1px solid black;
+            }
+            table.box td
+            {
+                padding: 0px 10px 0px 10px;
+                border: 1px solid black;
+            }
+
+            table.kevin {
+                width: 90%;
+                margin-left: auto;
+                margin-right: auto;
+                border-collapse: collapse;
+                border-spacing: 0px;
+                margin-top: 50px;
+                margin-bottom: 10px;
+            }
+            table.kevin td {
+                border: 1px silver solid;
+                padding-left:10px;
+                padding-right:10px;
+            }
+                        /* all boxed tables will be styled this way */
+            table.box
+            {
+                margin: 5px;
+                text-align: left;
+                border-collapse: collapse;
+            }
+            table.box tr { vertical-align:top;}
+            table.box th
+            {
+                padding: 0px 10px 0px 10px;
+                background-color: #ccc;
+                font-weight: bold;
+                text-align: center;
+                border: 1px solid black;
+            }
+            table.box td
+            {
+                padding: 0px 10px 0px 10px;
+                border: 1px solid black;
+            }
+
+            p.kevin {
+                width:88%;
+                margin-left: auto;
+                margin-right: auto;
+                text-align: center;
+                font-size: 12px ;
+            }
+            div.kevin {
+                text-align: center;
+                width: 300px;
+                margin-left: auto;
+                margin-right: auto;
+                text-align: center;
+                padding-top: 50px;
+                padding-bottom: 80px;
+            }
+            div.kevin img {
+                display: block;
+            }
+
+            .frontpage { page-break-after: always;}
+
+            /* toc */
+            #toc p {
+                color: #3D1F5B;
+                font-weight: bold;
+                font-size: 24px;
+            }
+
+            /* style for boxes */
+            div.box {
+                background-color: #eeeeee;
+                margin: 0 auto ;
+            }
+            div.box p {
+                width: 100% ;
+                padding: 5px;
+                margin: 0 auto ;
+                background-color: #eeeeee;
+            }
+            div.box p.box_header   {
+                background-color: black ;
+                color: white;
+                font-weight: bold;
+                margin-top: 0px ;
+            }
+
+        </style>
+
+    </head>
+    <body>
+        <div class='header'>
+            <img src="file://~/.ct2/templates/kevin/kevin_small_hdr.png" alt="Kevins Thoughts" />
+        </div>
+        <div class="frontpage">
+            <table class="kevin">
+                <tr><td>Title</td><td>%TITLE%</td></tr>
+                <tr><td>Subtitle</td><td>%SUBTITLE%</td></tr>
+                <tr><td>Author </td><td>%AUTHOR%</td></tr>
+                <tr><td>Date</td><td>%DATE%</td></tr>
+            </table>
+
+            %TOC%
+
+        </div>
+
+        <div class='content'>
+          %_CONTENTS_%
+        </div>
+    </body>
+</html>

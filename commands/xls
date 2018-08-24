@@ -1,0 +1,172 @@
+#!/usr/bin/env perl
+# PODNAME: curl
+# ABSTRACT: create a bash extract with curl command based on YAML data
+
+=head1 NAME
+
+curl
+
+=head1 SYNOPSIS
+
+    > curl ..options..
+
+    to get full help use
+    > curl --help
+
+=head1 DESCRIPTION
+
+create a bash extract with curl command based on YAML data
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use JSON::MaybeXS ;
+use YAML::Tiny qw(Load) ;
+
+# ----------------------------------------------------------------------------
+# make numeric entries in a hash properly numbers so that when the hash is used
+# to generate JSON then the correct values will be displayed
+# ie. numbers will not be represented as strings
+# use this function recursively to keep things simple!
+
+sub _make_numbers
+{
+    my $item = shift ;
+
+    if ( ref($item) eq 'HASH' ) {
+        foreach my $key ( keys %{$item} ) {
+            $item->{$key} = _make_numbers( $item->{$key} ) ;
+        }
+    } elsif ( ref($item) eq 'ARRAY' ) {
+        for ( my $i = 0; $i < scalar( @{$item} ); $i++ ) {
+            ${$item}[$i] = _make_numbers( ${$item}[$i] ) ;
+        }
+    } elsif ( ref($item) eq '' || ref($item) eq 'SCALAR' ) {
+        if ( defined $item ) {
+            if ( $item =~ /^\d+(\.\d+)?$/ ) {
+
+                # force numbers to be numbers
+                $item += 0 ;
+            } elsif ( $item eq 'true' ) {
+                # boolean true
+                # $item = Types::Serialiser::true ;
+                $item = \1 ;
+            } elsif ( $item eq 'false' ) {
+                # boolean false
+                # $item = Types::Serialiser::false ;
+                $item = \0 ;
+            }
+        }
+    }
+
+    return $item ;
+}
+
+# -----------------------------------------------------------------------------
+
+my @methods = qw( GET PUT POST PATCH DELETE) ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Create curl based bash fragment",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'method=s'      => {
+            desc    => "Method for call, one of " . join( ", ", @methods ),
+            default => $methods[0],
+
+            # validate => sub { my $m; grep( /$m/i, @methods) }
+        },
+        'url=s'   => { desc => "URL to make request to",      required => 1 },
+        'title=s' => { desc => 'Give the curl block a title', default  => 'curl example', },
+        "headers=s" => { desc => "key value pairs of headers to send 'key=value, key2=value'" },
+        "query=s"   => { desc => "additional query data to add to end of URL" },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+
+# curl -H "Content-Type: application/json" \
+#   -X POST -d '{"config":[{"timestamp":"2016-02-24T08:18:22Z",
+#     "unique_id":1234567891, "am_flag": true}]}' \
+#   %BASE_URL%/license?auth=customer_token
+
+my ( $content, $json, $output, $curl ) ;
+$opt{method} = uc( $opt{method} ) ;
+$opt{query} ||= "" ;
+$opt{url} =~ s/\/$// ;
+
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN>  } ;
+
+    if ($content) {
+        eval {
+            my $yaml = Load("$content\n") ;
+            my $jobj = JSON::MaybeXS->new( utf8 => 1, pretty => 1 ) ;
+            $json = $jobj->encode( _make_numbers($yaml) ) ;
+
+            $json =~ s/\n/ \\\n/gsm ;
+        } ;
+        # if ($@) {
+        #     print "Invalid YAML:\n$content";
+        #     exit;
+        # }
+    }
+} else {
+    $json = "{}" ;
+}
+
+$curl = "curl" ;
+
+# remember GET cannot pass form data
+if ( $opt{method} ne 'GET' ) {
+    $curl .= " -X $opt{method} " ;
+}
+$curl .= " -H 'Content-Type: application/json'" ;
+if ( $opt{query} ) {
+    $opt{url} .= "?$opt{query}" ;
+    # and make it split over lines, if it seems to be too long
+    if ( length( $opt{query} ) >= 30 ) {
+        $curl .= "\\\n" ;
+        $opt{url} =~ s/([\?&])/$1\\\n/gsm ;
+    }
+} else {
+    $curl .= "\\\n" ;
+}
+
+if ( $opt{headers} ) {
+    foreach my $h ( split( /, ?/, $opt{headers} ) ) {
+        $curl .= " -H '$h' \\\n" ;
+    }
+}
+
+if ( $opt{method} ne 'GET' ) {
+    $curl .= " -d '$json'" ;
+}
+
+# space out the URL a bit to make it more noticable
+$curl .= " \"$opt{url}\"" ;
+
+$output .= " " ;
+$output = "<div class='ol_wrapper'><div class='ol_left'>&nbsp;$opt{title}</div>\n"
+    if ( $opt{title} ) ;
+
+$output .= '~~~~ { .bash }' . "\n$curl\n~~~~\n\n" ;
+$output .= "\n</div>\n\n" if ( $opt{title} ) ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+

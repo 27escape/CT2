@@ -1,0 +1,68 @@
+#!/usr/bin/env perl
+# PODNAME: critic_changes
+# ABSTRACT: add section to describe how the criticMarkup changes appear in the document
+
+=head1 NAME
+
+critic_changes
+
+=head1 SYNOPSIS
+
+    > critic_changes ..options..
+
+    to get full help use
+    > critic_changes --help
+
+=head1 DESCRIPTION
+
+add section to describe how the criticMarkup changes appear in the document
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "add section to describe how the criticMarkup changes appear in the document",
+    options   => {
+        'has_content=i' => 'add section to describe how the criticMarkup changes appear in the document',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' => {desc => 'Where to store temp files', required => 1},
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ($content, $output) ;
+# readin the content
+# if ( $opt{has_content} ) {
+#     $content = do { local $/ ; <STDIN> } ;
+#     chomp $content ;
+# }
+
+# $output = "<c:#white.red> :mi:error_outline: critic_changes </c>" ;
+# $output = "<c:red>:mi:error_outline: critic_changes</c>" ;
+# $output = "<c:red>:mi:cancel: critic_changes</c>" ;
+$output = "## Changes
+
+Per revision, deletions will be marked as text like {--removed text--}, additions as {++new text++}, replacements as {~~old text ~> replaced new text~~}.
+
+As each revision is released, the deleted items from the previous version will be removed, the additions changed to normal text and the replacements put in place.
+
+Changes can only be shown for body text, not for updated images or JSON fragments etc.\n\n" ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

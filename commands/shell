@@ -1,0 +1,70 @@
+#!/bin/bash
+# sample shell script to be used as a App::Basis::Convert2 command
+
+# include the standard library functions
+. "$HOME/bin/include/script_base"
+
+# ---------------------------------------------------------------------------
+# setup HELP for show_usage
+
+export HELP="App::Basis::Convert2 command to ...
+
+    usage:  [-h]
+
+    -h | --help      This help
+    -v | --verbose   verbose output
+    --has_content    show that there is something echoed in STDIN
+    --doc_ref        file that is calling this command
+    --cachedir       safe location to put any images etc that need to be referenced
+
+"
+
+# ---------------------------------------------------------------------------
+# clean up things whenever the script completes
+cleanup() {
+    echo ""
+}
+trap cleanup EXIT
+
+# ---------------------------------------------------------------------------
+# process command line args
+
+# debug off
+export LOG_LEVEL=0
+
+# http://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options#402410
+# NOTE: This requires GNU getopt.
+# need to mention both short (-o) and long (--options) here
+# trailing : shows a parameter is required
+TEMP=$(getopt -o vh --long verbose,help,cachedir:,doc_ref: -n "$PROGRAM" -- "$@" 2>/dev/null)
+
+# if any parameters were bad
+if [ $? != 0 ] ; then show_usage 'Bad Parameters' ; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
+DOC_REF=""
+CACHE_DIR=""
+while true; do
+    case "$1" in
+    -v | --verbose )  LOG_LEVEL=7
+        shift
+        ;;
+    -h | --help ) show_usage ''
+        ;;
+    --cachedir) CACHE_DIR="$2" # get the data
+        shift 2 # remove both param and data
+        ;;
+    --doc_ref) DOC_REF="$2" ;
+        shift 2
+        ;;
+
+    * ) break ;;
+    esac
+done
+# remove the options we used
+# shift $(($OPTIND -1))
+
+# ---------------------------------------------------------------------------
+#  now start the main program
+debug " started"

@@ -1,0 +1,26 @@
+---
+fields:
+  price: Price
+  useful: Usefulness
+  design: Design
+  battery: Battery Capacity
+  camera: Camera Quality
+data:
+  - name: iphone
+    price: 1
+    battery: 0.7
+    design: 1
+    useful: 0.9
+    camera: 0.9
+  - name: galaxy
+    price: 0.8
+    battery: 1
+    design: 0.6
+    useful: 0.8
+    camera: 1
+  - name: nexus
+    price: 0.5
+    battery: 0.8
+    design: 0.7
+    useful: 0.6
+    camera: 0.6

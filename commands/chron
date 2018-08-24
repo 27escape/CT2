@@ -1,0 +1,158 @@
+#!/usr/bin/env perl
+# PODNAME: chron
+# ABSTRACT: Create ploticus chron charts
+
+=head1 NAME
+
+chron
+
+=head1 SYNOPSIS
+
+    > chron ..options..
+
+    to get full help use
+    > chron --help
+
+=head1 DESCRIPTION
+
+Description of what your application does
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use Data::Printer ;
+
+# -----------------------------------------------------------------------------
+my $MAXROWS = 100000 ;                    # max lines in CSV
+my @formats = qw/day week month auto/ ;
+my @delim   = qw/space comma tab/ ;
+my @units   = qw/date datetime time/ ;
+my $datetime_regexp_sec
+    = qr/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/ ;
+my $datetime_regexp = qr/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/ ;
+my $datefmt         = "yyyy-mm-dd" ;
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text =>
+        "Create a chron SVG based on CSV formatted input, (date, value)",
+    options => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' =>
+            { desc => 'Where to store temp files', required => 1 },
+        'format=s' => {
+            desc => "Format of the image, one of " . join( ', ', @formats ),
+            default  => $formats[0],
+            validate => sub { my $f = shift ; grep( /$f/i, @formats ) ; },
+        },
+        'delim=s' => {
+            desc    => "data separator, one of " . join( ", ", @delim ),
+            default => "space"
+        },
+        'unittype=s' => {
+            desc =>
+                "Format of the date/time data, rather than just dates. One of "
+                . join( ", ", @units ),
+            default => "date"
+        },
+        'title=s' => {
+            desc => "Title for the image",
+            # default => "Chronological chart"
+        },
+        'color=s'  => { desc => 'Color of the bars', default => 'red' },
+        'width=s'  => { desc => "svg image width",   default => "100%" },
+        'height=s' => { desc => "svg image height",  default => "" },
+        'class=s' =>
+            { desc => "extra class to apply to the svg", default => "" },
+        'verbose' => 'verbose output for development',
+    },
+) ;
+
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+my @rows = split( "\n", $content ) ;
+$MAXROWS = scalar @rows * 3 ;
+if ( $rows[5] =~ /"$datetime_regexp"/ ) {
+    # data is in datetime and needs to be fixed for ploticus to understand it
+    $opt{unittype} = 'datetime' ;
+    my %agregated = () ;
+    $content = ( shift @rows ) . "\n" ;
+    while ( my $row = shift @rows ) {
+        # we drop the seconds
+        if ( $row =~ /"$datetime_regexp_sec",(\d)/ ) {
+            $agregated{"$1-$2-$3.$4:$5"} += $7 ;
+        } elsif ( $row =~ /"$datetime_regexp",(\d)/ ) {
+            $agregated{"$1-$2-$3.$4:$5"} += $6 ;
+        } elsif ( $row =~ /"(.*?)",(\d)/ ) {
+            $agregated{"$1"} += $2 ;
+        }
+    }
+    foreach my $k ( sort keys %agregated ) {
+        $content .= "$k,$agregated{$k}\n" ;
+    }
+}
+say STDERR $content ;
+
+@rows = () ;
+
+# make sure numbers are referenced in pixels
+$opt{width} =~ s/^(\d+)$/$1px/ ;
+$opt{height} =~ s/^(\d+)$/$1px/ if ( $opt{height} ) ;
+
+$opt{doc_ref} ||= "$$" ;
+my $outfile = "$opt{cachedir}/chron.$doc_ref.svg" ;
+my $svg_tagparms
+    = "\"width='$opt{width}'"
+    . ( $opt{class}  ? " class='$opt{class}'"   : "" )
+    . ( $opt{height} ? " height='$opt{height}'" : "" )
+    . "\"" ;
+
+my $command
+    = "ploticus -prefab chron -maxrows $MAXROWS x=1 y=2 datefmt=$datefmt "
+    . "color=$opt{color} data=stdin -o '$outfile' "
+    . "delim=$opt{delim} unittype=$opt{unittype} "
+    . "tabmode=mid autow=yes autoyears=yyyy automonths=MM "
+    . "-svg -svg_tagparms $svg_tagparms " ;
+
+$command .= "title='$opt{title}' " if ( $opt{title} ) ;
+
+# other unittypes can try to be automatic
+if ( $opt{format} ne 'auto' && $opt{unittype} eq 'date' ) {
+    $command .= "xinc='1 month' tab=$opt{format} " ;
+}
+if ( $opt{format} eq 'day' ) {
+    $command .= "barwidth=line " ;
+} elsif ( $opt{format} eq 'week' ) {
+    $command .= "barwidth=0.05 " ;
+} elsif ( $opt{format} eq 'month' ) {
+    $command .= "barwidth=0.2 " ;
+}
+
+verbose("Command is [$command]") ;
+# run ploticus command and capture STDOUT
+my $resp = execute_cmd(
+    command     => $command,
+    child_stdin => $content,
+    timeout     => 10
+) ;
+
+if ( $resp->{exit_code} ) {
+    say STDERR "Could not create chron image - $resp->{stderr}" ;
+    exit 1 ;
+}
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print "<img src='$outfile' />" ;

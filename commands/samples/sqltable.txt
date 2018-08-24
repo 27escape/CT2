@@ -1,0 +1,3 @@
+SELECT DISTINCT name, primary_secondary, source_ip
+FROM vms
+WHERE dest_port=12000;

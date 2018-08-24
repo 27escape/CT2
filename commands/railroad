@@ -1,0 +1,184 @@
+#!/usr/bin/env perl
+# PODNAME: railroad
+# ABSTRACT: create railroad diagram, like used to explain BNF syntax
+# https://kevinpt.github.io/syntrax/#using-syntrax
+
+# install syntrax from https://github.com/kevinpt/syntrax
+# sudo python setup.py install
+# could not get version installed from  'sudo pip install syntrax' to do the right thing, python errors
+
+=head1 NAME
+
+railroad
+
+=head1 SYNOPSIS
+
+    > railroad ..options..
+
+    to get full help use
+    > railroad --help
+
+=head1 DESCRIPTION
+
+create railroad diagram, like used to explain BNF syntax
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use Path::Tiny ;
+use WebColors ;
+
+my $style = <<'END_STYLE';
+[style]
+line_width = 2
+outline_width = 2
+padding = 5
+line_color = (0, 0, 0)
+max_radius = 9
+h_sep = 17
+v_sep = 9
+arrows = True
+title_pos = 'tl'
+bullet_fill = (255, 255, 255)
+text_color = %COLOR%
+shadow = True
+shadow_fill = (0, 0, 0, 40)
+title_font = ('Sans', 22, 'bold')
+
+[hex_bubble]                 ; User-defined style name
+pattern = '^\+\w'            ; for things starting like +special or +samples
+text_mod = 'lambda txt: txt[1:]' ; drop leading char
+shape = 'hex'                ; Hexagon shape for node
+font = ('Sans', 14, 'bold')
+fill = (%BG%, 200)         ; Alpha component for transparent fills
+
+[bubble]
+pattern = '^\\w'
+shape = 'bubble'
+text_mod = None
+font = ('Sans', 14, 'bold')
+text_color = %COLOR%
+fill = (%BG%, 255)
+
+[box]
+pattern = '^/'
+shape = 'box'
+text_mod = 'lambda txt: txt[1:]'
+font = ('Times', 14, 'italic')
+text_color = %COLOR%
+fill = (%BG%, 127)
+
+[token]
+pattern = '.'
+shape = 'bubble'
+text_mod = None
+font = ('Sans', 16, 'bold')
+text_color = %COLOR%
+fill = (%BG%, 160)
+
+END_STYLE
+
+# -----------------------------------------------------------------------------
+# get a semi random oc color, use the lower colors
+sub get_random_oc
+{
+    my @c = grep ( /^oc-\w+-[1-4]$/, list_webcolors() ) ;
+    @c = grep ( !/gr[ea]/, @c ) ;    # remove grays
+    my $r = int( rand() * scalar(@c) ) ;
+    return $c[$r] ;
+}
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "create railroad SVG diagram, like used to explain BNF syntax",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'title=s'   => "descriptive title",
+        'width=s'   => 'percentage width of image, eg 80%',
+        'transparent=i' => { desc => 'if you want transparent background', default => 1 },
+        'color=s'   => { desc => 'color of the nodes', default => 'oc-green-2' },
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+
+my ( $content, $output ) ;
+$output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+    # write content
+    my $in_temp = Path::Tiny->tempfile() ;
+    my $infile  = $in_temp->canonpath ;
+    $in_temp->spew_utf8($content) ;
+    my $out_temp = Path::Tiny->tempfile() ;
+    my $outfile  = $out_temp->canonpath . ".svg" ;
+
+    my ( $r, $g, $b ) = colorname_to_rgb( $opt{color} ) ;
+    if ( $opt{color} =~ /(random|rand|rnd)/i ) {
+        ( $r, $g, $b ) = colorname_to_rgb( get_random_oc() ) ;
+    }
+    my $bg = join( ',', ( $r, $g, $b ) ) ;
+    my $color = colorname_to_hex('black') ;
+    $style =~ s/%BG%/$bg/gsm ;
+    $style =~ s/%COLOR%/"#$color"/gsm ;
+
+    # create the style if we need to
+    my $style_file = "$opt{cachedir}/railroad.$opt{color}.style" ;
+    path($style_file)->spew_utf8($style) if ( !-f $style_file ) ;
+
+    my $command = "syntrax -t " ;
+    $command .= "--title='$opt{title}' " if ( $opt{title} ) ;
+    $command .= "-i '$infile' -o '$outfile' " ;
+    $command .= "-s $style_file " ;
+
+    verbose("Running..  $command") ;
+    my ( $code, $out, $err ) = run_cmd($command) ;
+    if ( !$code ) {
+        $output = path($outfile)->slurp_utf8 ;
+        unlink($outfile) ;
+        # we should not keep random style
+        unlink($style_file) if ( $opt{color} =~ /(random|rand|rnd)/i ) ;
+
+        # change of width can only be a percentage and drops height value
+        if ( $opt{width} && $opt{width} =~ /%$/ ) {
+            $output =~ s/width=".*?" height=".*?"/width="$opt{width}"/sm ;
+        }
+        # TODO: figure out how to add these links to the links table, without needing
+        #  to fix all other pages
+        # if( $content =~ /url_map\s?=\s?\{(.*?)\}/sm) {
+        #     my $map = $1 ;
+        #     foreach my $line ( split( /\n/), $map) {
+        #         $line =~ s/["']//g ;
+        #         $line =~ s/,$// ;
+        #         $line =~ s/:/|/ ;
+        #     }
+        # }
+
+    } else {
+        verbose("out $out\nerr $err") ;
+        $output = "~~~~{.warning icon=1 title='railroad error'}\n $err\n~~~~\n" ;
+    }
+}
+
+# remove the XML header from SVG
+$output =~ s/.*?(<svg)/$1/gsm ;
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

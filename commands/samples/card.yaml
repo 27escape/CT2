@@ -1,0 +1,6 @@
+title: ":fa:tv: AMS"
+class: good
+left: "consecutive<br>**7**"
+right: "Total<br>**7**"
+status: "{{.badge subject=':fa:check-circle:' status='Thing 1' color=green}}<br> {{.badge subject=':fa:check-circle:' status='Thing 2' color=green}}"
+

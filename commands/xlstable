@@ -1,0 +1,112 @@
+#!/usr/bin/env perl
+# PODNAME: xlstable
+# ABSTRACT: generate spreadsheet from xls file
+
+=head1 NAME
+
+xlstable
+
+=head1 SYNOPSIS
+
+    > xlstable ..options..
+
+    to get full help use
+    > xlstable --help
+
+=head1 DESCRIPTION
+
+generate spreadsheet from xls file
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+# ----------------------------------------------------------------------------
+# make numeric entries in a hash properly numbers so that when the hash is used
+# to generate JSON then the correct values will be displayed
+# ie. numbers will not be represented as strings
+# use this function recursively to keep things simple!
+
+sub _make_numbers
+{
+    my $item = shift ;
+
+    if ( ref($item) eq 'HASH' ) {
+        foreach my $key ( keys %{$item} ) {
+            $item->{$key} = _make_numbers( $item->{$key} ) ;
+        }
+    } elsif ( ref($item) eq 'ARRAY' ) {
+        for ( my $i = 0; $i < scalar( @{$item} ); $i++ ) {
+            ${$item}[$i] = _make_numbers( ${$item}[$i] ) ;
+        }
+    } elsif ( ref($item) eq '' || ref($item) eq 'SCALAR' ) {
+        if ( defined $item ) {
+            if ( $item =~ /^\d+(\.\d+)?$/ ) {
+
+                # force numbers to be numbers
+                $item += 0 ;
+            } elsif ( $item eq 'true' ) {
+                # boolean true
+                # $item = Types::Serialiser::true ;
+                $item = \1 ;
+            } elsif ( $item eq 'false' ) {
+                # boolean false
+                # $item = Types::Serialiser::false ;
+                $item = \0 ;
+            }
+        }
+    }
+
+    return $item ;
+}
+
+# -----------------------------------------------------------------------------
+
+my @methods = qw( GET PUT POST PATCH DELETE) ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "generate spreadsheet from xls file",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'filename=s', => { desc => 'xls file', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+
+my ( $content, $json, $output, $xlstable ) ;
+
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+
+    if ($content) {
+        verbose( $content) ;
+        my $resp = execute_cmd(
+            command     => "home/kmulholland/xls2txt -d '|' $opt{filename} 1-A1:A100",
+            timeout     => 10
+        ) ;
+        if( !$$resp->{stdout}) {
+            $output = "~~~~{.spreadsheet legends=1 separator='|'}\n$resp->{stdout}\n~~~~\n\n" ;
+        }
+        verbose( $resp->{stderr}) ;
+    }
+}
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+

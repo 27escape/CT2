@@ -1,0 +1,125 @@
+#!/usr/bin/env perl
+# taken from https://gist.github.com/QuantumGhost/0955a45383a0b6c0bc24f9654b3cb561
+# and http://forum.plantuml.net/331/database-modeling?show=331#q331
+
+# PODNAME: database
+# ABSTRACT: create database schema diagram
+
+
+=head1 NAME
+
+database
+
+=head1 SYNOPSIS
+
+    > database ..options..
+
+    to get full help use
+    > database --help
+
+=head1 DESCRIPTION
+
+create database schema diagram
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use App::Basis::ConvertText2::Support ;
+
+my $field_bgcolor = "aliceblue" ;
+my $bgcolor       = "#191970" ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "create database schema diagram",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        "size=s"    => "size of image, width x height",
+        "width=s"   => "optional width",
+        "height=s"  => "optional",
+        "class=s"   => "optional",
+        "line=s"    => {desc => "line type", default => 'poly'},
+        "title=s"   => "optional set the upper text",
+        "alt=s"   => "optional set the lower text",
+        "align=s"   => "option, set alignment of image",
+
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+
+    # if we need to check a cache for this item, we need a sig first
+    my $sig = create_sig( $content, \%opt ) ;
+    $content =~ s/"/\"/g ;
+
+    my $params = "" ;
+    foreach my $p (qw/line size width height class title caption align/) {
+        $params .= "$p='$opt{$p}' " if ( $opt{$p} ) ;
+    }
+
+    $output = "~~~~{.uml shadow=0 $params}
+!define TABLE(name,desc) class name as \"<b>desc</b>\" << (T,$field_bgcolor) >>
+!define TABLE(name) class name << (T,$field_bgcolor) >>
+!define VIEW(name,desc) class name as \"<b>desc</b>\" << (V,$field_bgcolor) >>
+!define VIEW(name) class name << (V,$field_bgcolor) >>
+!define PRIMARY_KEY(x)  <&key> <b>x</b>
+!define FOREIGN_KEY(x)  <color:red><&key></color> <i>x</i>
+!define UNIQUE(x)       x UNIQUE
+!define BOOLEAN         x BOOLEAN
+!define REAL(x)         x REAL
+!define BLOB(x)         x BLOB
+!define NUMERIC(x)      x NUMERIC
+!define FLOAT(x)        x FLOAT
+!define DATE(x)         x DATE
+!define DATETIME(x)     x DATETIME
+!define TIME(x)         x TIME
+!define STRING(x)       x STRING
+!define STRING(x,y)     x STRING [y]
+!define TEXT(x)         x TEXT
+' text does not have a length so ignore it
+!define TEXT(x,y)       x TEXT
+!define VARCHAR(x)      x VARCHAR
+!define VARCHAR(x,y)    x VARCHAR [y]
+!define INTEGER(x)      x INTEGER
+!define NOT_NULL(x)     <&warning> x
+
+hide methods
+hide stereotypes
+left to right direction
+
+skinparam {
+    ClassHeaderBackgroundColor $bgcolor
+    ClassFontColor white
+    ClassBackgroundColor $field_bgcolor
+    ClassBorderColor $bgcolor
+    ArrowColor black
+    DefaultTextAlignment left
+}
+" . $content . "\n~~~~\n\n" ;
+
+}
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

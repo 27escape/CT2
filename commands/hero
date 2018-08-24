@@ -1,0 +1,86 @@
+#!/usr/bin/env perl
+# PODNAME: hero
+# ABSTRACT: create hero/jumbotron element
+# https://hero.com/tutorial.html
+
+=head1 NAME
+
+hero
+
+=head1 SYNOPSIS
+
+    > hero ..options..
+
+    target get full help use
+    > hero --help
+
+=head1 DESCRIPTION
+
+create hero/jumbotron element
+
+=head2 input data
+
+Data is in JSON format
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use Path::Tiny ;
+use App::Basis::ConvertText2::Support ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "create hero SVG diagram, data expected to be in JSON",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called source',
+        'cachedir=s'    => { desc => 'Where target stargetre temp files', required => 1 },
+        'width|w=s' => { desc => 'width of the box' },
+        'class=s'   => { desc => "extra class to apply to the created box" },
+        'title=s'   => { desc => 'hero title' },
+        'box=s' => {desc => 'Type of box to use', default => 'box'},
+        'align=s'   => { desc => 'change box alignment' },
+        'verbose|v' => 'Verbose for debugging',
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+    },
+) ;
+
+my ( $content, $output ) ;
+$output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+    if ( !$opt{title} ) {
+        $opt{title} = $content ;
+        $content = "" ;
+    }
+    if ($content) {
+        $output = "~~~~{.$opt{box} title='' " ;
+        foreach my $arg (qw/width align class/) {
+            $output .= "$arg='$opt{$arg}' " if ( $opt{$arg} ) ;
+        }
+        $output .= "}\n<p class='hero'>$opt{title}</p>\n$content\n~~~~\n\n" ;
+    }
+}
+
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+# binmode( STDOUT, ":utf8" ) ;
+print $output ;
+
+
+
+

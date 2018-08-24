@@ -1,0 +1,29 @@
+{
+    "title": "Licence Request",
+    "type": "array",
+    "properties": {
+        "unique_id": {
+            "title": "NUID",
+            "description": "A nagra 10 digit ID",
+            "type": "integer"
+        },
+        "type": {
+            "description": "Licence type",
+            "type": "enum",
+            "constraint": "daf, svod, tvod"
+        },
+        "asset_id": {
+            "description": "VOD asset ID, required for type tvod",
+            "type": "integer"
+        },
+        "from": {
+            "description": "Datetime when licence is valid from. See [Datetime Format](#datetime_explain). Must be before date in **until** field. Cannot be more than 1 day (24h) in the past",
+            "type": "string"
+        },
+        "to": {
+            "description": "Datetime when licence is valid until. See [Datetime Format](#datetime_explain). Must be after date in **from** field",
+            "type": "string"
+        }
+    },
+    "required": ["unique_id", "type", "from", "to"]
+}

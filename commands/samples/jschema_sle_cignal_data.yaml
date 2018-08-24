@@ -1,0 +1,72 @@
+$schema: "http://json-schema.org/schema#"
+title: Cignal schema
+description: Initial Schema for servicelist editor for the Cignal organisational view of a channel
+type: object
+properties:
+  id:
+    type: integer
+    description: The unique channel ID
+  lcn:
+    type: integer
+    description: Channel number
+    title: LCN
+    minimum: 1
+    maximum: 999
+  name:
+    title: Channel Name
+    type: string
+    description: Channel name
+    minLength: 3
+    maxLength: 40
+  type:
+    title: Channel Type
+    description: The type of the channel
+    type: string
+    enum:
+      - TV
+      - Radio
+  triplets:
+    title: Channel Triplet
+    type: array
+    minItems: 1
+    maxItems: 1
+    description: Single triplet for the channel
+    items:
+      $ref: "#/definitions/triplet"
+  channel_icon:
+    title: Channel Icon
+    description: Icon to be associated with this channel, size 160x120
+    type: string
+    format: data-url
+  guest:
+    title: Guest channel
+    type: boolean
+    description: Guest channel 'sticks' to EPG
+
+required:
+  - lcn
+  - name
+  - type
+  - triplets
+  - guest
+
+definitions:
+    triplet:
+      description: single channel triplet, made up of ONID, TSID, SID
+      type: object
+      properties:
+        onid:
+          title: ONID
+          type: integer
+          min: 0
+          maximum: 65535
+        tsid:
+          title: TSID
+          type: integer
+          min: 0
+          maximum: 65535
+        sid:
+          title: SID
+          type: integer
+          min: 0
+          maximum: 65535

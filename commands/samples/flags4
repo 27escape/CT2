@@ -1,0 +1,9 @@
+7: ServiceType  : some explanation of servicetype #red.black
+ : extra lines
+ : and more
+6: Unused #blue.grey400
+5: AppService
+4-3: RecordingType : bit 4 info
+2: HD
+1: Encrypt
+0: ParentalGuidance

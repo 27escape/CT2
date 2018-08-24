@@ -1,0 +1,9 @@
+config:
+  - timestamp: "2016-02-24T08:18:22Z"
+    unique_id: 432486632122222071
+    am_flag: true
+  - timestamp: "2016-02-28T08:18:22Z"
+    unique_id: 432487146300734356
+    am_flag: false
+    region: Mindanao/Other Mindanao
+

@@ -1,0 +1,612 @@
+#!/usr/bin/env perl
+# PODNAME: jschema
+# ABSTRACT: convert JSON-schema documents into markdown
+
+=head1 NAME
+
+jschema
+
+=head1 SYNOPSIS
+
+    > jschema ..options..
+
+    to get full help use
+    > jschema --help
+
+=head1 DESCRIPTION
+
+convert JSON-schema documents into markdown
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+# use JSON::MaybeXS ;
+use JSON ;
+use YAML ;
+use Path::Tiny ;
+use feature qw/state/ ;
+use lib "$ENV{HOME}/src/lib" ;
+use MyUtils ;
+
+my %valid_types = (
+    string  => [qw/ enum minLength maxLength pattern contains format default/],
+    number  => [qw/ minimum maximum exclusiveminimum exclusiveMaximum multipleOf  default/],
+    integer => [qw/ minimum maximum exclusiveminimum exclusiveMaximum multipleOf  default/],
+    object  => [],
+    array   => [qw/ minItems maxItems uniqueItems contains/],
+    boolean => [qw/ default/],
+    null    => [],
+    const   => [],
+) ;
+
+my %type_colors = (
+    string  => "#black.indigo100",
+    number  => "#black.pink300",
+    integer => "#black.pink100",
+    object  => "#black.teal100",
+    array   => "teal300",
+    boolean => "#white.black",
+    null    => "#black.gray100",
+    const   => '#black.lightblue100',
+) ;
+
+# -----------------------------------------------------------------------------
+# couple of nasty globals
+my %definitions ;
+my $json_obj = JSON::MaybeXS->new( utf8 => 1, pretty => 1 ) ;
+my $base_url ;
+
+# -----------------------------------------------------------------------------
+sub _add_sample
+{
+    my ( $name, $data, $type ) = @_ ;
+    my $md = "" ;
+
+    if ($data) {
+        my $content = "" ;
+        my $ref     = ref($data) ;
+        # match scalar and boolean to the same div type that ~~~~{.json} will generate
+        if ( $ref eq '' || $ref =~ /^SCALAR$|^$/ ) {
+            $data = "\"$data\"" if ( $type && $type =~ /string/ ) ;
+            $content = "<div class='sourceCode'>\n&nbsp;&nbsp;&nbsp;&nbsp;$data\n</div>" ;
+        } elsif ( $ref eq 'JSON::PP::Boolean' ) {
+            $data = $data ? 'true' : 'false' ;
+            $content = "<div class='sourceCode'>\n&nbsp;&nbsp;&nbsp;&nbsp;$data\n</div>" ;
+        } else {
+            $content = "~~~~{.json}\n" . $json_obj->encode($data) . "~~~~" ;
+        }
+        $md
+            .= "<br><div class='ol_wrapper font80' style='width:95%;'><div class='ol_left'>&nbsp;$name</div>"
+            . "\n$content\n"
+            . "</div>\n\n" ;
+    }
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+# color a bit of text based on type
+sub _color_on_type
+{
+    my ( $text, $type ) = @_ ;
+    my $md = "" ;
+    $type ||= "" ;
+    if ($text) {
+        my $c = $type_colors{$type} || "black" ;
+        $md = "<c:$c>$text</c>" ;
+    }
+
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+# in one of our uses this will recurse
+sub _add_pattern_properties
+{
+    my $params = @_ % 2 ? shift : {@_} ;
+    if ( ref($params) ne 'HASH' ) {
+        warn "recall accepts a hash or a hashref of parameters" ;
+        return 0 ;
+    }
+    my $data = $params->{data} ;
+    my $md   = "" ;
+
+    if ( ref($data) eq 'HASH' ) {
+        foreach my $k ( keys %{$data} ) {
+            my $t = _color_on_type( $data->{$k}->{type} ) ;
+            $md .= "* $k $t\n" ;
+            $md .= _describe_item(
+                name  => "pattern $k",
+                data  => $data->{$k},
+                level => $params->{level} + 1,
+                # required => $required{$item},
+                shields => $params->{shields},
+            ) ;
+        }
+    } elsif ( ref($data) eq 'ARRAY' ) {
+        foreach my $d ( @{$data} ) {
+            my $t = _color_on_type( $d->{type} ) ;
+            $md .= "* $t\n" ;
+            $md .= _describe_item(
+                name  => "pattern thing",
+                data  => $d,
+                level => $params->{level} + 1,
+                # required => $required{$item},
+                shields => $params->{shields},
+            ) ;
+        }
+    } else {
+        $md .= "* pattern $data\n" ;
+    }
+
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+# param json - hash ref of data for the item
+# returns markdown string of item header
+sub _start_item
+{
+    my $params = @_ % 2 ? shift : {@_} ;
+    if ( ref($params) ne 'HASH' ) {
+        warn "recall accepts a hash or a hashref of parameters" ;
+        return 0 ;
+    }
+    my $data = $params->{data} ;
+    my $md ;
+
+    # verbose("starting $params->{name}") ;
+
+    if ( $params->{level} > 10 ) {
+        verbbose("too much recursion") ;
+        die("too much recursion > $params->{level}") ;
+    }
+    map { $data->{$_} ||= "" ; } qw/type description title/ ;
+
+    if ( !$data->{title} && $data->{description} ) {
+        my $desc = $data->{description} ;
+        if ( $desc =~ /^(.*?\.)(.*)/ ) {
+            $data->{title}       = $1 ;
+            $data->{description} = $2 ;
+        } else {
+            $data->{title}       = $desc ;
+            $data->{description} = "" ;
+        }
+    }
+    my $description = $data->{description} ;
+    if ( $params->{description} ) {
+        $description = "$params->{description}\n$description" ;
+    }
+
+    $data->{title} =~ s/\.$// ;
+    delete $data->{title} if ( lc( $data->{title} ) eq lc( $params->{name} ) ) ;
+    # inview specific thing, a boolean
+    if ( $data->{'x-draft'} || $params->{'x-draft'} ) {
+        $data->{title} = "$data->{title} {{.proposed}} " ;
+    }
+
+    my $shield ;
+
+    if ( $params->{shields} ) {
+        $data->{format} ||= $data->{'x-format'} ;
+        my $extra = $data->{format} ? "format='$data->{format}' " : "" ;
+        delete $data->{format} ;
+        $extra .= ( $params->{required} ? " required=1 " : "" ) ;
+
+        # pick up the the data contraints
+        if ( $data->{type} && $valid_types{ $data->{type} } ) {
+            my $added = 0 ;
+            foreach my $constraint ( @{ $valid_types{ $data->{type} } } ) {
+                if ( defined $data->{$constraint} ) {
+                    $extra .= "$constraint=" ;
+                    if ( $constraint eq 'enum' ) {
+                        $extra
+                            .= "'"
+                            . ( join( ", ", map {"\"$_\""} @{ $data->{$constraint} } ) )
+                            . "' " ;
+                    } else {
+                        # make sure we are not over doing the replacements
+                        if ( $constraint eq 'pattern' && $data->{$constraint} !~ /\\{2}/ ) {
+
+                            # when printing these out, there is some interpretation, lets fix
+                            $data->{$constraint} =~ s|\\|\\\\|g ;
+                        }
+                        $extra .= "'$data->{$constraint}' " ;
+                    }
+                    $added++ ;
+                }
+                # add in any properties constraints
+                map {
+                    if ( $data->{$_} ) {
+                        $added++ ;
+                        $extra .= " $_='$data->{$_}'" ;
+                    }
+                } qw/minProperties maxProperties/ ;
+            }
+            $extra .= " " if ($added) ;
+        }
+
+        $shield = "{{.fieldtype name='$params->{name}' type='$data->{type}' $extra}} " ;
+        verbose( "Sheld = $shield") ;
+    } else {
+        $shield =
+              ( $params->{required} ? "*" : "" )
+            . "*$params->{name}*"
+            . ( $params->{required} ? "*" : "" )
+            . " ($data->{type})" ;
+    }
+    if ( $data->{title} && $description && ($data->{title} eq $description) ) {
+        delete $data->{title} ;
+    }
+    $data->{title} = $data->{title} ? "*$data->{title}*" : "" ;
+    $data->{title} .= " -" if ( $data->{title} && $description ) ;
+    $md .= "<ul><li>$shield\n" ;
+    if ( $data->{title} || $description ) {
+        $md .= "<ul><li>$data->{title} $description</li></ul>\n" ;
+    }
+
+    # inview specific thing, an array of strings
+    # need to call more attention to things
+    if ( $data->{'x-attention'} || $params->{'x-attention'} ) {
+        $md .= "~~~~{.caution icon=1 title='Attention - more info needed'}\n" ;
+        map { $md .= "* $_\n" } ( @{ $data->{'x-attention'} }, @{ $params->{'x-attention'} } ) ;
+        $md .= "~~~~\n\n" ;
+    }
+
+    if ( $data->{patternProperties} ) {
+        $md .= "pattern\n" ;
+        $md .= _add_pattern_properties(
+            name  => 'pattern',
+            data  => $data->{patternProperties},
+            level => $params->{level} + 1,
+            # required => $required{$item},
+            shields => $params->{shields},
+        ) ;
+        $md .= "\n" ;
+    }
+
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+sub _end_item
+{
+    my $params = @_ % 2 ? shift : {@_} ;
+    if ( ref($params) ne 'HASH' ) {
+        warn "recall accepts a hash or a hashref of parameters" ;
+        return 0 ;
+    }
+
+    my $md = "</li></ul>\n" ;
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+# param name - name of the item
+# param data - hash ref of data for the item
+# returns markdown string
+sub _describe_item
+{
+    my $params = @_ % 2 ? shift : {@_} ;
+    if ( ref($params) ne 'HASH' ) {
+        warn "recall accepts a hash or a hashref of parameters" ;
+        return 0 ;
+    }
+    my $md   = "" ;
+    my $data = $params->{data} ;
+    my $ref ;
+    return $md if ( !$data ) ;
+
+    # verbose( "describe item " . ( $data->{name} ? $data->{name} : "-noname" ) ) ;
+
+    $params->{level} ||= 1 ;
+
+    # object references need to be handled differently
+    if ( $data->{'$ref'} ) {
+        $ref = $data->{'$ref'} ;
+        # just get the name of the object, strip off the link to the description
+        # assuming its local and not a http link
+        $ref =~ s/.*?\/(\w+)$/$1/ ;
+        $data->{type} = $ref ;
+    }
+    $data->{type} ||= "undefined" ;
+
+    $md .= _start_item(
+        name          => $params->{name},
+        data          => $data,
+        level         => $params->{level},
+        required      => $params->{required},
+        shields       => $params->{shields},
+        description   => $params->{description},
+        'x-attention' => $params->{'x-attention'},
+        'x-draft'     => $params->{'x-draft'},
+    ) ;
+
+    if ( $data->{type} =~ /array/ ) {    #  && $data->{items}
+        $md .= "\n" ;
+        if ( ref( $data->{items} ) eq 'ARRAY' ) {
+            foreach my $item ( @{ $data->{items} } ) {
+                my %required = map { $_ => 1 } @{ $data->{required} } ;
+                delete $data->{required} ;
+                my $name = $item->{title} ;
+                $name = 'array item' ;
+
+                $md .= _describe_item(
+                    name     => $name,
+                    data     => $item,
+                    level    => $params->{level} + 1,
+                    required => $required{$item},
+                    shields  => $params->{shields},
+                ) ;
+            }
+        } else {
+            # arrays of things have properties, then we need to play with those
+            my %required = map { $_ => 1 } @{ $data->{items}->{required} } ;
+            delete $data->{items}->{required} ;
+            if ( $data->{items}->{properties} ) {
+                $md .= "\nfields:\n" ;
+
+                my %things = %{ $data->{items}->{properties} } ;
+                # make sure things are always in the same order
+                foreach my $name ( sort keys %things ) {
+                    $md .= _describe_item(
+                        name     => $name,
+                        data     => $things{$name},
+                        level    => $params->{level} + 1,
+                        required => $required{$name},
+                        shields  => $params->{shields},
+                    ) ;
+                }
+            } else {
+                # likely to be a single repeated item in the array, so lets describe that
+                $md .= _describe_item(
+                    name    => 'array item',
+                    data    => $data->{items},
+                    level   => $params->{level} + 1,
+                    shields => $params->{shields},
+                ) ;
+            }
+        }
+    } else {
+        # arrays of things have properties, then we need to play with those
+        my %required = map { $_ => 1 } @{ $data->{required} } ;
+        delete $data->{required} ;
+        if ( $data->{properties} ) {
+            $md .= "\nfields:\n" ;
+
+            my %things = %{ $data->{properties} } ;
+            # make sure things are always in the same order
+            foreach my $name ( sort keys %things ) {
+                $md .= _describe_item(
+                    name     => $name,
+                    data     => $things{$name},
+                    level    => $params->{level} + 1,
+                    required => $required{$name},
+                    shields  => $params->{shields},
+                ) ;
+            }
+        } else {
+            # # likely to be a single repeated item in the array, so lets describe that
+            # $md .= _describe_item(
+            #     name  => 'array item',
+            #     data  => $data->{items},
+            #     level => $params->{level} + 1,
+            # ) ;
+        }
+    }
+
+    my $had_inst = "" ;
+    foreach my $inst (qw/allOf anyOf OneOf/) {
+        if ( $had_inst && $data->{$inst} ) {
+            $md .= "**error** $had_inst and $inst have both been defined\n\n" ;
+            last ;
+        }
+        if ( $data->{$inst} ) {
+            $md .= "\n$inst:\n" ;
+            foreach my $of_thing ( @{ $data->{$inst} } ) {
+                my $tname = "item $inst" ;
+                if ( $of_thing->{name} ) {
+                    $tname = $of_thing->{name} ;
+                } elsif ( $of_thing->{'$ref'} ) {
+                    $tname = $of_thing->{'$ref'} ;
+                    $tname =~ s/.*?\/(\w+)$/$1/ ;
+                }
+                $md .= _describe_item(
+                    name    => $tname,
+                    data    => $of_thing,
+                    level   => $params->{level} + 1,
+                    shields => $params->{shields},
+                ) ;
+            }
+            $had_inst = $inst ;
+        }
+    }
+    # remove these so we do not attempt to process them
+    foreach my $inst (qw/allOf anyOf OneOf/) {
+        delete $data->{$inst} ;
+    }
+
+    # $md .= _add_sample( 'Default', $data->{default}, $data->{type} ) ;
+    my @eg = $data->{examples} ? @{ $data->{examples} } : () ;
+    if ( scalar(@eg) == 1 ) {
+        $md .= _add_sample( 'Example', $eg[0], $data->{type} ) ;
+    } elsif ( scalar(@eg) >= 1 ) {
+        for ( my $i = 1; $i <= ( scalar(@eg) + 1 ); $i++ ) {
+            $md .= _add_sample( "Example $i", $eg[ $i - 1 ], $data->{type} ) ;
+        }
+    }
+
+    $md .= _end_item() ;
+
+    if ( $data->{'$ref'} && $definitions{ $data->{'$ref'} } ) {
+        # we need to describe the item from its definition and replace the text
+        $md = _describe_item(
+            name          => $params->{name},
+            data          => $definitions{ $data->{'$ref'} },
+            description   => $data->{description},
+            'x-attention' => $data->{'x-attention'},
+            'x-draft'     => $data->{'x-draft'},
+            level         => $params->{level} + 1,
+            shields       => $params->{shields},
+            required      => $params->{required},
+        ) ;
+        # the fieldtype shield has the wrong name, need to replace it
+        $md =~ s/(\.fieldtype name=')$ref'/$1$params->{name}'/ ;
+    }
+
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+# build any objects
+# param object - hash ref of json schema definition object
+# returns array of
+#   markdown string
+
+sub _build_objects
+{
+    my $params = @_ % 2 ? shift : {@_} ;
+    if ( ref($params) ne 'HASH' ) {
+        warn "recall accepts a hash or a hashref of parameters" ;
+        return 0 ;
+    }
+    my $data = $params->{data} ;
+    my $md   = "" ;
+
+    if ($data) {
+        my %required = map { $_ => 1 } @{ $data->{required} } ;
+        delete $data->{required} ;
+
+        # make sure things always in the same order
+        foreach my $name ( sort keys %$data ) {
+            my $tname = $name ;
+            if ( $name =~ m|^#/definitions/(.*)| ) {
+                $tname = $1 ;
+            }
+
+            $md .= _describe_item(
+                name     => $tname,
+                data     => $data->{$name},
+                required => $required{$name},
+                shields  => $params->{shields},
+            ) ;
+        }
+        $md .= "\n" ;
+    }
+    return $md ;
+}
+
+# -----------------------------------------------------------------------------
+# convert a json schema string into a markdown string suitable for App::Basis::ConvertText2
+# param schema - the json schema as text
+# returns string of markdown representing the schema
+
+sub jschema_to_md
+{
+    my ( $data, $args ) = @_ ;
+    my $out = "" ;
+
+    my $header = $args->{header} || "##" ;
+
+    # basic sanity check
+    if ( !$data || !$data->{type} || !$data->{properties} ) {
+        return "Invalid schema document" ;
+    }
+
+    $base_url = $data->{id} || "" ;
+
+    # could do this nicer with a map, but first attempt failed :(
+    foreach my $name ( keys %{ $data->{definitions} } ) {
+        $definitions{"#/definitions/$name"} = $data->{definitions}->{$name} ;
+    }
+
+    if ( $args->{shields} ) {
+        $out .= "Items marked {{.required}} MUST be included.\n\n" ;
+    } else {
+        $out .= "Items in **bold** are required.\n\n" ;
+    }
+   # could also check for a few more extra fields that we may expect and after that assume all is OK
+   # we assume that the calling document has all the title details sorted
+   # add the items and then any objects
+    $out .= _build_objects(
+        data    => $data->{properties},
+        shields => $args->{shields},
+    ) ;
+
+    return $out ;
+}
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "convert JSON-schema documents into markdown",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'format=s'      => { desc => 'format of the content, json or yaml', default => 'json' },
+        'header=s'      => { desc => 'Level of header to use, eg ###', default => '###' },
+        'shields=s'     => { desc => 'have shields', default => 'yes' },
+        'linenum=i'     => 'linenumber used in calling doc',
+        'verbose|v'     => 'Verbose for debugging',
+    },
+) ;
+my $content ;
+my $output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+my $data ;
+
+eval {
+    if ($content) {
+        $opt{format} = 'yaml' if ( $opt{format} =~ /y.?ml/i ) ;
+        # it if looks more like yaml than json, fix it
+        if ( $content =~ /\s[\w\-_]+:/sm ) {
+            $opt{format} = 'yaml' ;
+        } else {
+            $opt{format} = 'json' ;
+        }
+
+        if ( $opt{format} =~ /yaml/i ) {
+            # verbose("processing yaml") ;
+            $data = Load($content) ;
+        } elsif ( $opt{format} =~ /json/i ) {
+            # verbose("processing json") ;
+            $data = $json_obj->decode($content) ;
+            # verbose("after load") ;
+        }
+    }
+
+    # change input strings into truthy values
+    map { $opt{$_} = $opt{$_} =~ /(yes|true|1)/i ? 1 : 0 ; } qw/shields/ ;
+
+    if ($data) {
+        $output = jschema_to_md( $data, \%opt ) ;
+    } else {
+        $output = "bad format $opt{format}" ;
+    }
+} ;
+if ($@) {
+    # track caught errors and send them back
+    $output = "~~~~{.alert icon=1 title=jschema error}}\n$@\n~~~~\n\n" ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+# for debug
+# path( "$opt{cachedir}/jschema.$opt{doc_ref}")->spew_utf8( $output) ;
+# print STDERR "$output\n" ;
+
+

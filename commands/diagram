@@ -1,0 +1,148 @@
+#!/usr/bin/env perl
+# PODNAME: diagram
+# ABSTRACT: Generate img HTML tags with chart information, with deprecated google chart API
+
+=head1 NAME
+
+diagram
+
+=head1 SYNOPSIS
+
+    > diagram ..options..
+
+    to get full help use
+    > diagram --help
+
+=head1 DESCRIPTION
+
+Generate img HTML tags with chart information, with deprecated google chart API
+
+=cut
+
+# http://charts.hohli.com/
+
+# https://sites.google.com/site/rmwlrkxo/api/google-chart
+
+# https://developers.google.com/chart/image/docs/making_charts
+# https://developers.google.com/chart/image/docs/chart_params
+
+# http://chart.apis.google.com/chart
+
+
+# cht=chart type, p3 = pie3d, p = pie, bhs = bars horizontal stacked, lc=line chart,qr=qrcode
+# chtt=chart title
+# chl=labels, separate with '|'
+# chd=data
+#     t: simple text format
+# chds=a  autoscaling, lets data values be > 100
+# chs=size, if x * y > 300000, reduce y to x  2.5
+# chco=colors, list of upper case hex values like FF00AA, separate with '|'
+# chxr=x range for bar charts, (series, min, max)
+# chds=scaling
+
+
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use WebColors ;
+
+# my @chart_types = qw/ pie pie3d lines spark hbars vbars compound radar scatter venn gauge box candlestick/ ;
+# spark is a form of line
+my @chart_types = qw/ pie pie3d / ;
+
+# for maps check out
+# country codes https://en.wikipedia.org/wiki/ISO_3166-2
+# and then the region codes for the country
+# https://en.wikipedia.org/wiki/ISO_3166-2:GB
+# eg liverpool, manchester, wales
+# http://chart.apis.google.com/chart?cht=map&chs=500x500&chld=GB-LIV|GB-MAN|GB-WLS|GB&chco=FF0000|00FF00|0000FF
+# inview deployed locations
+# http://chart.apis.google.com/chart?cht=map&chs=600x500&chld=NG|MX|PH|FR|GB|IT|PL|ES|AT|DE|US-CO&chco=202020|FF0000|FF00FF
+
+# -----------------------------------------------------------------------------
+# make a pie chart using old style deprecated google charts
+# http://chart.apis.google.com/chart?cht=p3&&chdl=10|20|70&chd=t:10,20,70&chl=Completed|In%20Progress|resolved&chs=640x200&chco=FF0000,00FF00,0000FF
+sub make_pie
+{
+    my ( $data, $title ) = @_ ;
+    my $size = "350x200" ;
+
+    my $url = "https://chart.apis.google.com/chart?cht=p&chs=$size&chds=a" ;
+    if ($title) {
+        $url .= "&chtt=" . uri_escape($title) ;
+    }
+    my @colors ;
+    my @values ;
+    my @fields ;
+    my @legends ;
+    my $count ;
+    foreach my $k ( sort keys %$data ) {
+        next if ( !$data->{$k} ) ;
+        if ( !$smap{$k}->{color} ) {
+            warn "No color for $k" ;
+        }
+        $count++ ;
+
+        push @colors, uc( colorname_to_hex( $smap{$k}->{color} || 'blue' ) ) ;
+        push @legends, uri_escape("$data->{$k} - $k") ;
+        push @values,  $data->{$k} ;
+        push @fields,  uri_escape($k) ;
+    }
+    # only show a piechart if more than one entry
+    if ( $count > 1 ) {
+        # the data values
+        $url .= "&chd=t:" . join( ",", @values )
+            # . "&chdl=" . join( "|", @legends )    # the legend
+            . "&chl=" . join( "|", @fields )    # the segment names
+            . "&chco=" . join( ",", @colors ) ;
+        $url = "<img src='$url' />" ;
+    } else {
+        $url = "" ;
+    }
+    return $url ;
+}
+
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Generate img HTML tags with chart information, with deprecated google chart API",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' => {desc => 'Where to store temp files', required => 1},
+        'verbose|v' => 'Verbose for debugging',
+        'size=s'   => {desc => "size of the image", default => '350x200'},
+        'format=s' =>{desc => "Type of diagram", default => 'pie'},
+        'title=s' => "Title for the diagram",
+        'separator=s' => {desc => 'Data field separator', default = '|'},
+        legends=> {desc => 'Legends to display, csv style'},
+    },
+) ;
+my ($content, $output) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+
+if( $opt{title}) {
+    # repalce spaces with '+' and newlines with '|'
+    $title =~ s/\s/+/gsm ;
+    $title =~ s/\n/|/gsm ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

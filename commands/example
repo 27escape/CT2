@@ -1,0 +1,71 @@
+#!/usr/bin/env perl
+# PODNAME: example
+# ABSTRACT: draw example div
+=head1 NAME
+
+example
+
+=head1 SYNOPSIS
+
+    > example ..options..
+
+    to get full help use
+    > example --help
+
+=head1 DESCRIPTION
+
+draw example div
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use App::Basis::ConvertText2::Support ;
+use Path::Tiny ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "draw example div",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        "class=s"   => "class to apply to the div",
+        'title=s'   => { desc => 'title for the example' },
+        "width=s"   => { desc => "width of example box", default => "100%" },
+        'pre=i'     => 'put a pre wrapper in the div',
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+$output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+    $opt{class} ||= "" ;
+
+    $output = "<div class='ol_wrapper $opt{class}' width='$opt{width}'>" ;
+    $output .= "<div class='ol_left'>\ $opt{title}</div>\n" if ( $opt{title} ) ;
+    $output .= "<div class=box width=100%>" ;
+    $output .= "<pre>"                                      if ( $opt{pre} ) ;
+    $output .= $content ;
+    $output .= "</pre>"                                     if ( $opt{pre} ) ;
+    $output .= "</div></div>\n\n" ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+

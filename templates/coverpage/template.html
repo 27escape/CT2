@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>%TITLE%</title>
+        <meta name="Created" content="%DATE%" />
+        <meta name="Author" content="%AUTHOR%" />
+        <meta name="Copyright" content="%COPYRIGHT%" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta charset='utf-8'/>
+
+
+<!-- <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'> -->
+<!-- monofont -->
+<link href='http://fonts.googleapis.com/css?family=Cousine' rel='stylesheet' type='text/css'>
+<!-- bodyfont -->
+<link href='http://fonts.googleapis.com/css?family=Raleway' rel='stylesheet' type='text/css'>
+
+        %GOOGLE_FONT%
+
+        %JAVASCRIPT%
+
+        <style type="text/css">
+            @media print {
+                @page {
+                    @top {
+                        margin: 0pt 0pt 0pt 0pt ;
+                        content: url(file://~/.ct2/templates/coverpage/small_hdr.png) ;
+                    }
+                    @bottom-right { content: counter(page) " / " counter(pages) ;}
+                    @bottom-left {content: "Created with ct2";}
+                    @bottom { content: "%COPYRIGHT%";}
+                }
+                /* remove some header stuff from front page */
+                @page:first {
+                    @top {content: normal; }
+                    @bottom-right { content: normal; ;}
+                    @bottom { content: normal; ;}
+                    @bottom-left { content: normal; ;}
+                }
+                div.footer { display: none;}
+                a {text-decoration:none ; color: teal; font-weight: bold;}
+            }
+
+            /* setup for web */
+            @media screen {
+                #toc a {
+                    text-decoration: none ;
+                    font-weight: normal;
+                    color: teal;
+                }
+            }          
+    
+            %CSS%            
+
+            h2, h3 {
+                color: teal;
+            }
+            h4, h5, h6 {
+                font-weight: normal;
+            }
+
+            body {
+                font-family: 'Raleway', sans-serif;
+            }
+            code {
+                font-family: 'Cousine', monospace;                
+            }
+            
+            /* tables*/
+
+            /* all normal tables will be styled this way */
+            table
+            {
+                margin: 5px;
+                text-align: left;
+                border-collapse: collapse;
+            }
+            table tr { vertical-align:top;}
+            table th
+            {
+            /*    padding: 8px 2px;*/
+                font-weight: bold;
+                border-bottom: 2px solid black;
+                border-right: 30px solid #fff;
+                border-left: 30px solid #fff;
+            }
+            table td
+            {
+                padding: 0px 10px 0px 10px;
+                border-right: 30px solid #fff;
+                border-left: 30px solid #fff;
+                vertical-align:top;
+            }
+
+            /* all boxed tables will be styled this way */
+            table.box
+            {
+                margin: 5px;
+                text-align: left;
+                border-collapse: collapse;
+            }
+            table.box tr { vertical-align:top;}
+            table.box th
+            {
+                padding: 0px 10px 0px 10px;
+                background-color: #ccc;
+                font-weight: bold;
+                text-align: center;
+                border: 1px solid black;
+            }
+            table.box td
+            {
+                padding: 0px 10px 0px 10px;
+                border: 1px solid black;
+            }
+
+            table.footer { font-size: 10px; width: 100%;}
+            table.footer td.commercial {
+                font-weight: bold;
+                font-size: 12px;
+                text-align: center;
+            }
+
+            table.coverpage {
+                width: 90%;
+                margin-left: auto;
+                margin-right: auto;
+                border-collapse: collapse;
+                border-spacing: 0px;
+                margin-bottom: 300px;
+            }
+            table.coverpage td {
+                border: 1px silver solid;
+                padding-left:10px;
+                padding-right:10px;
+            }
+            p.coverpage {
+                width:88%;
+                margin-left: auto;
+                margin-right: auto;
+                text-align: center;
+                font-size: 12px ;
+            }
+            div.coverpage {
+                text-align: center;
+                width: 280px;
+                margin-left: auto;
+                margin-right: auto;
+                text-align: center;
+                padding-top: 50px;
+                padding-bottom: 80px;
+            }
+            div.coverpage img {
+                display: block;
+            }
+
+            .frontpage { page-break-after: always;}
+           
+        </style>
+
+    </head>
+    <body>
+      <div class="frontpage">
+          <div class='coverpage'>
+              <img src="~/.ct2/templates/coverpage/logo_big.png" width="280" height="280" alt="coverpage Logo" />
+          </div>
+          <table class="coverpage">
+              <tr><td>Title</td><td>%TITLE%</td></tr>
+              <tr><td>Author </td><td>%AUTHOR%</td></tr>
+              <tr><td>Last Updated</td><td>%DATE%</td></tr>
+              <tr><td>Version</td><td>%VERSION%</td></tr>
+          </table>
+
+        %TOC%
+
+      </div>
+
+      <div class='content'>
+        %_CONTENTS_%
+      </div>
+      <div class='footer'>
+          <table class='footer' width='100%'>
+              <tr><td colspan='2' class='commercial' align='center'>27escape</td></tr>
+              <tr><td>%COPYRIGHT%</td><td align='right'>%DATE%</td></tr>
+          </table>
+      </div>
+    </body>
+</html>

@@ -1,0 +1,156 @@
+#!/usr/bin/env perl
+# PODNAME: card
+# ABSTRACT: create a status card
+
+=head1 NAME
+
+card
+
+=head1 SYNOPSIS
+
+    > card ..options..
+
+    to get full help use
+    > card --help
+
+=head1 DESCRIPTION
+
+create a status card
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use YAML qw(Load) ;
+use App::Basis ;
+
+# -----------------------------------------------------------------------------
+sub single_card
+{
+    my ( $body, $opt ) = @_ ;
+    my $output = "" ;
+    $opt->{class} ||= "" ;
+
+    # set default card width
+    if ( $opt->{class} !~ /card\d/ ) {
+        $opt->{class} .= " card13" ;
+    }
+    $opt->{class} = "card font80 $opt->{class}" ;
+    $output = "<div class='$opt->{class}'>" ;
+    if ( $opt->{title} ) {
+        my $header = "title_default" ;
+        if( $body->{class} =~ /(error|issue|warn|good)/) {
+            $header = "title_$body->{class}" ;
+        }
+        $output
+            .= "<div class='row title $header'><div class='span col12'>$opt->{title}</div></div>"
+            ;
+    }
+    if ( $body->{left} || $body->{right} ) {
+        $body->{left}  ||= "" ;
+        $body->{right} ||= "" ;
+        $output .= "<div class='row'>
+<div class='span col6 center'>$body->{left}</div>
+<div class='span col6 center'>$body->{right}</div>
+</div>" ;
+    }
+
+    if ( $body->{center} ) {
+        $output
+            .= "<div class='row'><div class='span col12 center'>$body->{center}</div></div>"
+            ;
+    }
+
+    if ( $body->{status} ) {
+        $output
+            .= "<div class='row'><div class='span col12'>$body->{status}</div></div>"
+            ;
+    }
+
+    $output .= "</div>\n" ;    # the card
+
+    return $output ;
+}
+
+# -----------------------------------------------------------------------------
+
+sub mutiple_cards
+{
+    my ( $body, $opt ) = @_ ;
+    my $output = "<div class='row'>" ;
+    my $r = 0 ;
+    foreach my $card ( @{ $body->{cards} } ) {
+        $output .= single_card(
+            $card,
+            {   title => $card->{title},
+                class => $card->{class},
+            }
+        ) ;
+
+       # do we need to start a new row
+       # cards have classes like card1, card13, card12, card14, card34, card23
+       # which reflect their size, we can make calculations based on these
+       # to decide if we should start a clean new row
+
+        my ($w) = ( $card->{class} =~ /card(\d+)/ ) ;
+        $w = "13" if ( !$w ) ;
+        my ( $a, $b ) = ( $w =~ /^(\d)(\d)?/ ) ;
+        if ( $a == 1 && !$b ) {
+            $output .= "</div><div class='row'>" ;
+            $r = 0 ;
+        } else {
+            $r += $a / $b ;
+            # 90% is close enough to the edge to assume its spilling over
+            if ( $r > 0.9 ) {
+                $output .= "</div><div class='row'>" ;
+                $r = 0 ;
+            }
+        }
+    }
+    $output .= "</div>" ;
+
+    return $output ;
+}
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "create a status card",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' =>
+            { desc => 'Where to store temp files', required => 1 },
+        'title=s'   => 'title of the status card',
+        'class=s'   => 'classes to apply to the status card',
+        'linenum=i' => 'the line in the document where this element starts',
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    $content .= "\n\n" ;
+}
+
+my $body = Load($content) ;
+
+# if we want multiple cards easily
+if ( $body->{cards} ) {
+    $output = mutiple_cards( $body, \%opt ) ;
+} else {
+    $output = single_card( $body, \%opt ) ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+

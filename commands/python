@@ -1,0 +1,34 @@
+#!/usr/bin/env python
+# base way to do things
+# used as a ct2 command
+
+import sys
+import argparse
+import codecs
+import locale
+
+sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout)
+
+# -----------------------------------------------------------------------------
+# main
+
+parser = argparse.ArgumentParser(description='Convert YAML to JSON maintaining keyordering')
+parser.add_argument('--cachedir', help='Location of cachedir',required=True)
+parser.add_argument('--has_content',help='Show that there is content to read in')
+parser.add_argument('--doc_ref',help='Reference to the document using this script')
+parser.add_argument('--linenum',help='Line in document this data came from')
+args = parser.parse_args()
+
+content = ""
+
+if args.has_content :
+    # make sure we are using utf8
+    sys.stdin = codecs.getreader("utf-8")(sys.stdin)
+    content = "".join(sys.stdin)
+
+output = ""
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line if possible!
+
+sys.stdout.write( output.encode( "utf-8"))

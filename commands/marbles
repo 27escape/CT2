@@ -1,0 +1,117 @@
+#!/usr/bin/env perl
+# PODNAME: marbles
+# ABSTRACT: convert a marbles diagram txt file into a SVG image
+
+# to install marbles
+# cd /tmp
+# git clone https://achary@bitbucket.org/achary/rx-marbles.git && \
+#   cd rx-marbles && sudo pip install .
+
+=head1 NAME
+
+marbles
+
+=head1 SYNOPSIS
+
+    > marbles ..options..
+
+    to get full help use
+    > marbles --help
+
+=head1 DESCRIPTION
+
+convert a marbles diagram txt file into a SVG image
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use Path::Tiny ;
+use App::Basis::ConvertText2::Support ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "convert a marbles diagram txt file into a SVG image",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'width|w=s'     => {
+            desc => 'percentage width of image, eg 80%',
+            # default => '100%'
+        },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        "sketch|pencil=i" => { desc => 'Convert the diagram into sketch format', default => 0 },
+        'verbose|v'       => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN>  } ;
+    chomp $content ;
+    # assume its good TXT
+    if( $content !~ /^marble.*?\n\{.*?\}/sm) {
+        verbose( "adding the marble wrapper") ;
+        $content = "marble diagram\n{\n$content\n}\n" ;
+    }
+
+    my $sig = create_sig( $content, \%opt ) ;
+    # keep the json for debug purposes
+    my $infile  = "$opt{cachedir}/marbles.$sig.txt" ;
+    my $outfile = "$opt{cachedir}/marbles.$sig.svg" ;
+    path($infile)->spew_utf8($content) ;
+    my $theme = $opt{sketch} ? 'pencil' : 'default' ;
+
+    my $command = "marblesgen '$infile' --output '$outfile' --theme $theme" ;
+    verbose("Running..  $command") ;
+    my ( $code, $out, $err ) = run_cmd($command) ;
+    if ( !$code ) {
+        $out = path($outfile)->slurp_utf8() ;
+        # strip out any error or other thing before the msg
+        $out =~ s/(.*?)(\<\?xml)/$2/ism ;
+        verbose("err $1 ") if ($1) ;
+        $output = $out ;
+        # lose anything before the SVG
+        $output =~ s/.*(<svg)/$1/ism ;
+
+        # update the width if needed
+        if ( $opt{width} && $opt{width} =~ /^\d{1,3}%$/ ) {
+            $output =~ s/(<svg.*?>)//ism ;
+            my $svg = $1 ;
+            if ($svg) {
+                $svg =~ s/viewBox=".*?"//sm ;
+                $svg =~ s/height=".*?"//sm ;
+                $svg =~ s/(width=").*?"/$1$opt{width}"/ ;
+                $output = "$svg$output" ;
+            }
+        }
+        # write it back to a file, as some of the text may contain chars like ≥
+        # which get mangled some place in the processing chain
+        path($outfile)->spew_utf8($output) ;
+        # make a IMG element, which contains the width, so all will be nice sizewise
+        $output = "<img src='$outfile' />" ;
+
+    } else {
+        verbose("out $out\nerr $err") ;
+        $out = "Could not parse content\n$content" ;
+        $output = "~~~~{.warning icon=1 title='marbles error'}\n$out\n$err\n~~~~\n" ;
+    }
+}
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

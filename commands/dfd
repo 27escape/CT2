@@ -1,0 +1,427 @@
+#!/usr/bin/env perl
+# dataflow (https://github.com/sonyxperiadev/dataflow) creates nice diagrams using plantUML and graphviz
+# I did create a proper plugin to do this and to make use of that software but then had the thought that
+# I can accomplish the same just by interpreting the dataflow syntax and creating plantUML diagrams directly
+
+# PODNAME: dataflow
+# ABSTRACT: create dataflow diagrams for sequence and dataflow
+
+=head1 NAME
+
+dataflow
+
+=head1 SYNOPSIS
+
+    > dataflow ..options..
+
+    to get full help use
+    > dataflow --help
+
+=head1 DESCRIPTION
+
+create dataflow sequence and dataflow diagrams using plantuml
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use App::Basis::ConvertText2::Support ;
+use Path::Tiny ;
+
+# -----------------------------------------------------------------------------
+# style has been lifted direct from dataflow as its much nicer than I could do
+
+my $uml_style = "skinparam BackgroundColor #white
+skinparam Shadowing false
+skinparam SequenceMessageAlign center
+skinparam DefaultFontName Arial
+skinparam DefaultFontStyle bold
+skinparam DefaultFontColor #333333
+skinparam NoteBackgroundColor #fbfb77
+skinparam NoteBorderColor #cbcb47
+skinparam NoteBackgroundColor #ffffcd
+skinparam NoteBorderColor #a9a980
+skinparam NoteFontColor #676735
+skinparam NoteFontStyle italic
+skinparam SequenceArrowColor #555555
+skinparam SequenceArrowFontColor #555555
+skinparam SequenceArrowFontStyle none
+skinparam SequenceBoxBackgroundColor #fafafa
+skinparam SequenceBoxBorderColor #eeeeee
+skinparam SequenceBoxFontColor #666666
+skinparam SequenceBoxFontSize 12
+skinparam SequenceBoxFontStyle italic
+skinparam ParticipantBackgroundColor #dde5ff
+skinparam ParticipantBorderColor #cccccc
+skinparam ParticipantFontColor #333333
+skinparam ParticipantFontStyle bold
+skinparam ParticipantBackgroundColor #dde5ff
+skinparam ParticipantBorderColor #cccccc
+skinparam ParticipantFontColor #333333
+skinparam ParticipantFontStyle bold
+skinparam AgentBackgroundColor #dde5ff
+skinparam AgentBorderColor #cccccc
+skinparam AgentFontColor #333333
+skinparam AgentFontStyle bold
+skinparam DatabaseBackgroundColor #df4646
+skinparam DatabaseFontColor #black
+skinparam DatabaseFontStyle bold
+skinparam EntityBackgroundColor #999999
+skinparam SequenceLifeLineBorderColor #bbbbbb
+skinparam SequenceMessageAlign center
+skinparam RectangleFontColor #666666
+skinparam RectangleBorderColor #eeeeee
+" ;
+
+my $NODE_MATCH = "(user|actor|agent|artifact|boundary|card|cloud|component|control|entity" .
+    "|file|folder|interface|node|queue|stack|rectangle|storage|usecase|participant" .
+    "|database|io|function)" ;
+my $ARROW_MATCH = "(<)?-(left-|up-|right-|down-)?(>)?" ;
+
+my %node_colors = (
+    actor       => "",
+    agent       => "",
+    artifact    => "",
+    boundary    => "",
+    card        => "",
+    cloud       => "",
+    component   => "",
+    control     => "",
+    database    => "",
+    entity      => "#lavendar",
+    file        => "",
+    folder      => "",
+    interface   => "",
+    node        => "",
+    queue       => "",
+    stack       => "",
+    rectangle   => "",
+    storage     => "",
+    usecase     => "",
+    participant => "",
+    database    => "#red",
+) ;
+
+# -----------------------------------------------------------------------------
+# convert from the compact form of the description to the expanded form, that
+# for some reason seems to be required
+# this is not the cleanest bit of code!
+# -----------------------------------------------------------------------------
+sub concise_to_expressive
+{
+    my ( $content, $format ) = @_ ;
+    my $newc = "" ;
+    my $participant = ( $format eq 'dfd' ? "agent" : "participant" ) ;
+
+    # test to see if we have any compact form items
+    if ( $content =~ /([\w_-]+)\s\<?-\>?\s+([\w_-]+)\s+(["'])[^\3](.*?)\3\s+(["'])(.*?)\5/gsm ) {
+        # lets not allow HTML line breaks
+        $content =~ s/<br\/?>/\\n/gsm ;
+        # if ( $content =~ /\s\<?-\>?\s(["']).*?\1\s(["']).*?\2/sm ) {
+        foreach my $line ( split( /\n/, $content ) ) {
+            # expand any nodes
+            # allow the nodes from the deployment set
+            # change funnction for participant
+            # change io for entity
+            $line =~ s/^(\s+)io\s+(\w+)/$1 entity $2/ ;
+            $line =~ s/^(\s+)function\s+(\w+)/$1 $participant $2/ ;
+            # FIXME: this could done better, either build a string or sumat
+            $line
+                =~ s/$NODE_MATCH\s+(["'])?(\w+)\2?\s+(["'])(.*?)\4/$1 $3 {\n        title = "$5"\n    }\n/
+                ;
+
+            # diagrams and boundaries are slightly different
+            $line =~ s/(diagram)\s+(["'])?([\w\\n ]+)\2?\s+\{/$1 {\n    title = "$3"/ ;
+            if ( $line =~ /(boundary)\s+(["'])?(.*?)\2?\s+\{/ ) {
+                my ( $item, $title ) = ( $1, $3 ) ;
+                my $t2 = $title ;
+                $t2 =~ s/\\n/_/g ;
+                $t2 =~ s/[ (){}]/_/g ;
+                $line = "$item $t2 {\n    title = \"$title\"" ;
+            }
+
+            if ( $line =~ /^(\s+)?([\w_-]+)\s+$ARROW_MATCH\s+(\w+)\s+(.*)/ ) {
+                my $fspace = $1 ? "$1$1" : "" ;
+                my $space = $1 || "" ;
+                my $tc = $2 ? "$space$2 " : "$space " ;
+                # sequence diagram arrows cannot have direction
+                my $arrow = (
+                    $format eq 'dfd'
+                    ? ( ( $3 || "" ) . "-" . ( $4 || "" ) . ( $5 || "" ) )
+                    : ( ( $3 || "" ) . "-" . ( $5 || "" ) )
+                ) ;
+
+                $tc .= "$arrow $6 {\n" ;
+                my $left = $7 ;
+
+                # lets do it in simpler chunks
+                if ( $left =~ /(["'])(.*?)\1\s+((["'])(.*?)\4\s+?)?((["'])(.*?)\7)/ ) {
+                    my ( $op, $data, $desc ) = ( $2, $5, $8 ) ;
+
+                    if ( !$data && $desc ) {
+                        $data = $desc ;
+                        $desc = "" ;
+                    }
+                    # in operation data or description change a litteral \n to a char \n
+                    if ($op) {
+                        $op =~ s/\\n/\n/g ;
+                        $tc .= $fspace . "operation = '$op'\n" ;
+                    }
+                    if ($data) {
+                        $data =~ s/\\n/\n/g ;
+                        $tc .= $fspace . "data = '$data'\n" ;
+                    }
+                    if ($desc) {
+                        $desc =~ s/\\n/\n/g ;
+                        $tc .= $fspace . "description = '$desc'\n" ;
+                    }
+                }
+
+                $tc .= "$space}" ;
+                $line = $tc ;
+            }
+
+            $newc .= "$line\n" ;
+        }
+    } else {
+        $newc = $content ;
+    }
+
+    $newc =~ s/'/"/g ;
+    verbose($newc) ;
+
+    return $newc ;
+}
+
+# -----------------------------------------------------------------------------
+sub expressive_to_uml
+{
+    my ( $content, $format, $param_str ) = @_ ;
+    my $newc       = "" ;
+    my @lines      = split( /\n/, $content ) ;
+    my $flow_count = 0 ;
+
+    # work through the lines, redo the boundaries
+    # for any flow matches save them to flows, so they could have a number later
+    # besides we want to put all the
+    # flows after the boundaries for neatness
+
+    for ( my $i = 0; $i < scalar(@lines); $i++ ) {
+# if we have a boundary, lets process its contents, should be nodes each with title, data and operation files
+        if ( $lines[$i] =~ /^\s?boundary\s+(\w+)\s+\{/ ) {
+            my $boundary = $1 ;
+            my $bname    = $1 ;
+
+            if ( $lines[ $i + 1 ] =~ /^\s+title\s+=\s+(['"])(.*?)\1/ ) {
+                $bname = $2 ;
+                # $boundary = $1 ;
+                $i++ ;
+            }
+
+            # box "//**Set STB region**//" #f8f8f8
+            # replace boundary with a grey box, the title is bold italics
+            if ( $format eq 'dfd' ) {
+                $newc .= "rectangle \"//**$bname**//\" as $boundary #f8f8f8 {\n" ;
+            } else {
+                # $newc .= "box \"//**$boundary**//\" #f8f8f8\n" ;
+                $newc .= "box \"//**$bname**//\" #f8f8f8\n" ;
+                # $newc .= "box \"$bname\" #f8f8f8\n" ;
+            }
+
+            # continue until end of boundary
+            $i++ ;
+            die "boundary $boundary started at end of text" if ( $i > scalar(@lines) ) ;
+            while ( $lines[$i] !~ /\s+\}/ ) {
+
+                # check for a node
+                if ( $lines[$i] =~ /^\s+$NODE_MATCH\s+(\w+)\s+\{/ ) {
+                    my ( $node, $name ) = ( $1, $2 ) ;
+                    my %fields = () ;
+
+                    # continue until end of node info
+                    $i++ ;
+                    die "node ($node $name) started at end of text" if ( $i > scalar(@lines) ) ;
+
+                    while ( $lines[$i] !~ /\s+\}/ ) {
+                        if ( $lines[$i] =~ /\s+(\w+)\s+=\s+(['"])(.*?)\2/ ) {
+                            $fields{$1} = $3 ;
+                        }
+                        $i++ ;
+                        die "Could not find end of node ($node $name) before end of text"
+                            if ( $i > scalar(@lines) ) ;
+                    }
+                    # so now we have a node specification
+                    $newc .= "        $node \"$fields{title}\" as $name\n" ;
+                }
+                $i++ ;
+                die "boundary $boundary does not before end of text" if ( $i > scalar(@lines) ) ;
+            }
+
+            if ( $format eq 'dfd' ) {
+                $newc .= "}\n\n" ;
+            } else {
+                $newc .= "end box\n\n" ;
+            }
+        } else {
+            # we can have nodes that are not in a boundary
+            if ( $lines[$i] =~ /^\s+$NODE_MATCH\s+(\w+)\s+\{/ ) {
+                my ( $node, $name ) = ( $1, $2 ) ;
+                my %fields = () ;
+
+                # continue until end of node info
+                $i++ ;
+                die "node ($node $name) started at end of text" if ( $i > scalar(@lines) ) ;
+
+                while ( $lines[$i] !~ /\s+\}/ ) {
+                    if ( $lines[$i] =~ /\s+(\w+)\s+=\s+(['"])(.*?)\2/ ) {
+                        $fields{$1} = $3 ;
+                    }
+                    $i++ ;
+                    die "Could not find end of node ($node $name) before end of text"
+                        if ( $i > scalar(@lines) ) ;
+                }
+                # so now we have a node specification
+                $newc .= "    $node '$fields{title}' as $name\n" ;
+            } elsif ( $lines[$i] =~ /^\s+(\w+)\s+$ARROW_MATCH\s+(\w+)\s+\{/ ) {
+                # matched a flow
+                $flow_count++ ;
+                my $from  = $1 ;
+                my $to    = $5 ;
+                # dfd arrows can include direction, seq cannot
+                my $arrow = (
+                    $format eq 'dfd'
+                    ? ( ( $2 || "" ) . "-" . ( $3 || "" ) . ( $4 || "" ) )
+                    : ( ( $2 || "" ) . "-" . ( $4 || "" ) )
+                ) ;
+                my %fields ;
+
+                while ( $lines[$i] !~ /\s+\}/ ) {
+                    if ( $lines[$i] =~ /\s+(\w+)\s+=\s+(['"])(.*?)\2/ ) {
+                        $fields{$1} = $3 ;
+                    }
+                    $i++ ;
+                    die "Could not find end of flow ($from $arrow $to) before end of text"
+                        if ( $i > scalar(@lines) ) ;
+                }
+
+                $newc
+                    .= "    $from $arrow $to " . ": "
+                    . (
+                    $format eq 'dfd'
+                    ? "<size:8><color:royalblue>($flow_count)</color></size> "
+                    : ""
+                    )
+                    . ( $fields{operation}   ? "**$fields{operation}**"                     : "" )
+                    . ( $fields{data}        ? '\n' . "//$fields{data}//"                   : "" )
+                    . ( $fields{description} ? '\n' . "<size:8>$fields{description}</size>" : "" )
+                    . "\n" ;
+            } else {
+                    # need to ignore any info spacers if its a DFD diagram
+                    if( !($format eq 'dfd' && $lines[$i] =~ /^\s*==/)) {
+                        $newc .= "$lines[$i]\n" ;
+                    }
+            }
+        }
+    }
+
+    verbose($newc) ;
+
+    # add uml wrapper
+    $newc = "~~~~{.uml $param_str}\n$uml_style\n$newc \n~~~~\n\n" ;
+
+    return $newc ;
+}
+
+
+# -----------------------------------------------------------------------------
+
+sub expand_content
+{
+    my ( $content, $format, $param_str ) = @_ ;
+    my $newc = "" ;
+
+    # remove the diagram wrapper first
+    $content =~ s/^\s*diagram\s+.*?\{(.*)\}\s*$/$1/sm ;
+
+    # first, lets make everything the same
+    $newc = concise_to_expressive( $content, $format ) ;
+
+    eval { $newc = expressive_to_uml( $newc, $format, $param_str ) ; } ;
+    if ($@) {
+        $newc = "~~~~{.error title='Dataflow syntax error'\n$@\n~~~~\n\n" ;
+    }
+
+    return $newc ;
+}
+
+# -----------------------------------------------------------------------------
+# main
+my %formats = (
+    dataflow => 'dfd',
+    sequence => 'seq',
+    dfd      => 'dfd',
+    seq      => 'seq',
+    default  => 'seq',
+) ;
+
+my %opt = init_app(
+    help_text => "create datafrlow diagrams with plantuml",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        "size=s"    => "size of image, width x height",
+        "width=s"   => "optional width",
+        "height=s"  => "optional",
+        "class=s"   => "optional",
+        "line=s"    => { desc => "line type"  },
+        "title=s"   => "optional set the alt text",
+        "align=s"   => "option, set alignment of image",
+        "format=s"  => {
+            desc => 'diagram format, seq or dfd',
+            # prob should do a grep against keys %formats
+            validate => sub { my $f = shift ; $f =~ /^seq$|^sequence$|^dfd$|^dataflow$/i },
+            default => 'seq',
+        },
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+
+    # if we need to check a cache for this item, we need a sig first
+    my $sig = create_sig( $content, \%opt ) ;
+    $content =~ s/"/\"/g ;
+
+    my $param_str = "" ;
+    foreach my $p (qw/line size width height class title align/) {
+        $param_str .= "$p='$opt{$p}' " if ( $opt{$p} ) ;
+    }
+
+    my $format = 'default' ;
+    $format = $formats{ lc( $opt{format} ) } || $formats{default} ;
+
+    $output = expand_content( $content, $format, $param_str ) ;
+
+    path( "/tmp/dfd.$format")->spew_utf8( $output) ;
+
+}
+
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

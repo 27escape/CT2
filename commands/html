@@ -1,0 +1,61 @@
+#!/usr/bin/env perl
+# PODNAME: html
+# ABSTRACT: load HTML nicely
+
+=head1 NAME
+
+html
+
+=head1 SYNOPSIS
+
+    > html ..options..
+
+    to get full help use
+    > html --help
+
+=head1 DESCRIPTION
+
+Description of what your application does
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+# use Data::Printer ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text =>
+        "Unindents html",
+    options => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s' =>
+            'name of the document, this command is being called from',
+        'cachedir=s' =>
+            { desc => 'Where to store temp files', required => 1 },
+        'verbose' => 'verbose output for development',
+    },
+) ;
+
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+
+# We need to make sure any html elements are left aligned to stop markdown making
+# paragraphs out of it, also let us include ~~~~{ blocks
+$content =~ s/^\s+(<|~~~~)/$1/gsm ;
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $content ;

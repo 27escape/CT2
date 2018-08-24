@@ -1,0 +1,177 @@
+#!/usr/bin/env perl
+# PODNAME: rest - simple script to ...
+# ABSTRACT: Create a boilerplate app for App::Basis
+
+=head1 NAME
+
+restapi
+
+=head1 SYNOPSIS
+
+    > rest ..options..
+
+    to get full help use
+    > rest --help
+
+=head1 DESCRIPTION
+
+creates a nice 'badge' for a rest style url
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+
+# -----------------------------------------------------------------------------
+# style for the various HTTP verbs
+my %style = (
+    get    => { icon => ':fa:arrow-circle-down GET', color => 'blue600' },
+    post   => { icon => ':fa:arrow-circle-up POST',  color => 'green600' },
+    put    => { icon => ':fa:plus-circle PUT',       color => 'orange600' },
+    delete => { icon => ':fa:times-circle DELETE',   color => 'red600' },
+    patch  => {
+        icon  => ':fa:chevron-circle-right PATCH',
+        color => 'purple600'
+    },
+) ;
+
+# response starts with one of these numbers
+my %responses = (
+    '2' => { message => 'OK',           bg => 'green600',  color => 'white' },
+    '3' => { message => 'Redirection',  bg => 'orange400', color => 'black' },
+    '4' => { message => 'Client Error', bg => 'red400',    color => 'black' },
+    '5' => { message => 'Server Error', bg => 'red900',    color => 'white' },
+    'unknown' =>
+        { message => 'Unknown Error', bg => 'blue900', color => 'white' },
+) ;
+
+my $query_bg = 'lavender' ;
+
+# -----------------------------------------------------------------------------
+sub make_badge
+{
+    my ( $method, $url, $rev ) = @_ ;
+    my ( $status, $color, $reverse, $subject ) = ( "", "", "", "" ) ;
+    my $output ;
+
+    $status .= "\\ " if ( $status =~ m/ $/ ) ;
+
+    $method = lc($method) ;
+    $method =~ s/^\s+|\s+$//g ;    # trim
+    if ($method) {
+        $subject = $style{$method}->{icon} ;
+        $status  = $url ;
+        $color   = $style{$method}->{color} ;
+    } else {
+        $subject = "Invalid method" ;
+        $status  = $method ;
+        $color   = 'crimson' ;
+        $reverse = 1 ;
+    }
+    # pandoc has '\ ' as a non breaking space, but we need to escape the '\' generally
+    $output
+        = "{{.badge subject='\\ $subject' status='\\ $status\\ ' color='$color' reverse='$reverse' size=80%}}"
+        ;
+    return $output ;
+}
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "creates a nice 'badge' for a rest style url",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s' => {desc => 'Where to store temp files', required => 1},
+        'url=s'         => { desc => 'URL that the REST API uses', },
+        'method=s'      => {
+            desc => 'REST API method to use' . join( ', ', sort keys %style ),
+            default => 'get'
+        },
+        'desc=s'     => 'description of the API method',
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'response=i' => {
+            desc =>
+                'Define the response block, with this HTTP response amd with the content',
+            default => 200
+        },
+        'verbs=i' => {
+            desc =>
+                'Write the REST HTTP verb table, use this with ~~~~{.rest} format and not {{.rest}}, otherwise it will not get interpreted properly'
+        },
+        "query=i" => 'Create a query block from the content',
+        "verbose|v" => "verbose for debugging",
+    },
+) ;
+my $content ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+
+my ( $status, $color, $reverse, $subject ) = ( "", "", "", "" ) ;
+my $output = "" ;
+
+if ( $opt{method} && $opt{url} ) {
+    $output = make_badge( $opt{method}, $opt{url} ) . " " . ($opt{desc} || "");
+
+    if ($content) {
+        $output = "<br><div>"
+        . "<div>$output</div>"
+        . "<div style='align:top;width:100%;'>$content\n</div></div>"
+    }
+} elsif ( $opt{verbs} ) {
+    $output = "~~~~{.table width='100%' separator='|' class='box' legends=1}
+Verb {33%}| Description\n"
+        . make_badge( 'GET', '/path/to/call' )
+        . " | Retrieves either an entity or a list of entities. It does not modify.\n"
+        . make_badge( 'POST', '/url' )
+        . " | Updates an existing entry\n"
+        . make_badge( 'PUT', '/path/to/call' )
+        . " | Create/replaces an existing entry\n"
+        . make_badge( 'DELETE', '/path/to/call' )
+        . " | Deletes an existing entry\n"
+        . make_badge( 'PATCH', '/path/to/call' )
+        . " | Change part of an entry
+~~~~
+\n" ;
+
+} elsif ( $opt{query} ) {
+    $output = "<br><div>"
+        . "<div><span style='border:1px solid black;align:top;width:100%;background-color:$query_bg;'>&nbsp;**Query Parameters**&nbsp;</span></div><div>\n$content\n</div></div>"
+        ;
+} elsif ( $opt{response} ) {
+    $content |= "" ;
+    my $bg ;
+
+    my ($code) = ( $opt{response} =~ /^(\d)\d{2}$/ ) ;
+    if ( !$responses{$code} ) {
+        $code = 'unknown' ;
+    }
+    $color         = $responses{$code}->{color} ;
+    $bg            = $responses{$code}->{bg} ;
+    $opt{response} = "$responses{$code}->{message} - $opt{response}" ;
+    # $output = "<br><div style='border: 1px solid $color;'>"
+    $output = "<br><div>"
+        . "<div><span style='border:1px solid black;align:top;width:100%;color:$color;background-color:$bg;'>&nbsp; **Response: $opt{response}** &nbsp;</span></div><div>\n$content\n</div></div>"
+        ;
+} else {
+    say STDERR "Could not build .restapi block" ;
+    exit 1 ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

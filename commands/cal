@@ -1,0 +1,101 @@
+#!/usr/bin/env perl
+# PODNAME: calendar
+# ABSTRACT: draw <pre> wrapped calendar for current month
+
+=head1 NAME
+
+$1
+
+=head1 SYNOPSIS
+
+    > $1 ..options..
+
+    to get full help use
+    > $1 --help
+
+=head1 DESCRIPTION
+
+Description of what your application does
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use POSIX qw( strftime) ;
+
+my $align = "float: left; vertical-align: text-top;" ;
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Define either a REST API call or its response",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'class=s' => { desc => 'class to apply to the pre wrapper' },
+        'date=s'  => {
+            desc     => 'date for calendar "YYYY-MM-DD"',
+            default  => strftime( "%Y-%m-%d", localtime( time() ) ),
+            validate => sub {
+                my $d = shift ;
+                $d =~ /^\d{4}-\d{1,2}(-\d{2})?$/ ;
+            }
+        },
+        'time=s' => {
+            desc => 'optionally show a time, for calendar "HH:MM(:SS)?"',
+            # default  => strftime( "%Y-%m-%d", localtime( time() ) ),
+            # validate => sub {
+            #     my $d = shift ;
+            #     $d =~ /^\d{2}:\d{2}(:\d{2})?$/ ;
+            # }
+        },
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+
+$opt{class} = "calendar" . ( $opt{class} ? " $opt{class}" : "" ) ;
+my ( $content, $output ) ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+    chomp $content ;
+}
+my ( $year, $mon, $ign, $day ) =
+    ( $opt{date} =~ /^(\d{4})-(\d{1,2})(-(\d{2}))?$/ ) ;
+
+$opt{time} = strftime( "%H:%M", localtime( time() ) ) if ( $opt{time} == 1 ) ;
+
+my $cal = `cal $mon $year` ;
+
+$cal =~ s/\s+(\w+ \d{4})\s+/  :fa:chevron-left:[border] $1 :fa:chevron-right:[border]\n/sm ;
+# bit hacky, sometimes there are tabs and stuff to pad it out
+# esp the single digit days
+$cal =~ s/\x{8}//gsm ;
+$cal =~ s/_(\d)_/ $1/gsm ;
+if ($day) {
+    $day =~ s/^0// ;
+    $cal =~ s/\b$day\b/<span style='background:red100;color:black;'><b>$day<\/b><\/span>/sm ;
+}
+
+if ( $opt{time} ) {
+    $output = "<div class='$opt{class}'><div style='$align'>**Date**<br>
+<pre>$cal</pre></div><div style='$align'>**Time**<br><br>$opt{time}</div></div>
+<div style='clear:both;'></div>" ;
+} else {
+    $output = "<div><pre class='$opt{class}'>$cal</pre></div>" ;
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

@@ -1,0 +1,99 @@
+#!/usr/bin/env perl
+# PODNAME: octave
+# ABSTRACT: Draw mathematical things with octave
+
+=head1 NAME
+
+octave
+
+=head1 SYNOPSIS
+
+    > octave ..options..
+
+    to get full help use
+    > octave --help
+
+=head1 DESCRIPTION
+
+Draw mathematical things with octave, output will be SVG, but these could be very large images
+
+=cut
+
+#
+# (c) yourname, your@email.address.com
+# this code is released under the Perl Artistic License
+
+use 5.10.0 ;
+use strict ;
+use warnings ;
+use App::Basis ;
+use App::Basis::ConvertText2::Support ;
+use Path::Tiny ;
+
+# -----------------------------------------------------------------------------
+# main
+
+my %opt = init_app(
+    help_text => "Draw mathematical things with octave",
+    options   => {
+        'has_content=i' => 'show that there is something echoed in STDIN',
+        'doc_ref=s'     => 'name of the document, this is being called from',
+        'cachedir=s'    => { desc => 'Where to store temp files', required => 1 },
+        'size=s'   => { desc => 'Optional size of the image, eg 100x200' },
+        'format=s' => { desc => 'Output format, png or svg', default => 'svg' },
+        "linenum=i" => "Linenumber in the file this construct used on, useful for error reporting",
+        'verbose|v' => 'Verbose for debugging',
+    },
+) ;
+my ( $content, $output ) ;
+$output = "" ;
+# readin the content
+if ( $opt{has_content} ) {
+    $content = do { local $/ ; <STDIN> } ;
+
+    if ($content) {
+        chomp $content ;
+        my $size = "" ;
+        if ( $opt{size} && $opt{size} =~ /^\s?\d+\s?x\s?\d+\s?$/ ) {
+            $opt{size} =~ s/ //g ;
+            $size = "'-S" . $opt{size} . "'" ;
+            $size =~ s/x/,/ ;
+        }
+        # remove any chance of input having a print statement
+        $content =~ s/^\s?print.*//gsm ;
+
+        my $format = $opt{format} ;
+        # verbose( "format is $format") ;
+        $format = 'svg' if ( $format !~ /(^png$|^svg$)/ ) ;
+
+        my $sig = create_sig( $content, \%opt ) ;
+        # keep the json for debug purposes
+        my $base    = "$opt{cachedir}/octave.$sig" ;
+        my $infile  = "$base.inp" ;
+        my $outfile = "$base.$format" ;
+        if ( !-f $outfile ) {
+            $content .= "\nprint -d$format -color $size '$outfile' \n" ;
+            path($infile)->spew_utf8($content) ;
+            my $command = "octave -q -W --no-gui '$infile'" ;
+            verbose("command is $command") ;
+            my ( $code, $out, $err ) = run_cmd($command) ;
+            if ( $code || $out =~ /error/ ) {
+                verbose("ERROR: octave failed - $err") ;
+                exit 1 ;
+            }
+        }
+        if ($size) {
+            $size = "width='$opt{size}'" ;
+            $size =~ s/x/' height='/ ;
+        }
+        $output = "<img src='$outfile' $size/>" ;
+    }
+}
+
+# be careful how output happens, in case its in-line in a .table or something
+# so no \n at the end of the line!
+print $output ;
+
+
+
+

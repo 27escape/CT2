@@ -1,0 +1,65 @@
+#!/bin/bash
+# read data from STDIN process and write to STDOUT
+#
+
+# ---------------------------------------------------------------------------
+# setup HELP for show_usage
+
+PROGRAM="redbg"
+HELP="Read from STDIN and make HTML DIV with red background,
+used as a block 'command' by the ct2 program
+
+    usage: $PROGRAM [-h]
+
+        -h    This help
+
+        $PROGRAM
+
+"
+
+# ---------------------------------------------------------------------------
+# clean up things whenever the script completes
+cleanup() {
+    echo ""
+}
+trap cleanup EXIT
+
+# ---------------------------------------------------------------------------
+# process command line args
+
+# debug off
+export LOG_LEVEL=0
+
+while getopts "h" OPTION ; do
+    case $OPTION in
+    h) echo "$HELP"
+        exit 1
+        ;;
+
+    *)  echo "$HELP"
+        exit 1
+        ;;
+    esac
+done
+# remove the options we used
+shift $(($OPTIND -1))
+
+# ---------------------------------------------------------------------------
+#  now start the main program
+echo "$PROGRAM started" > /dev/stderr
+
+echo "<div style='background: salmon'>"
+
+# read all the lines from STDIN and make them paragraphs
+while read -r data ; do
+    # we need to split lines with '\n' in them into multiple lines
+    IFS=$'\n'  read -a lines <<< "$data"
+    for line in "${lines[@]}" ; do
+        if [ "$line" != "" ] ; then
+            echo "<p>$line</p>"
+            echo ""
+        fi
+    done
+done < /dev/stdin
+
+echo "</div>"

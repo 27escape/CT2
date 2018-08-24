@@ -1,0 +1,225 @@
+#!/usr/bin/env nodejs
+ // run a node application to solve a plugin request for ct2
+// draw a SVG radar chart based on https://github.com/derhuerst/svg-radar-chart
+// investigate https://www.papaparse.com/docs#config
+
+/* jshint esversion: 6 */
+
+// node upgrade to latest stable
+// sudo npm cache clean -f
+// sudo npm install -g n
+// sudo n stable
+
+// install the modules that are initially required
+// sudo npm install -g commander get-stdin
+// sudo npm install -g svg-radar-chart virtual-dom  virtual-dom-stringify js-yaml csv-parse colorbrewer
+
+// to see most of the colorsets used https://github.com/d3/d3-scale-chromatic
+// colorbrewer
+// YlGn, YlGnBu, GnBu, BuGn, PuBuGn, PuBu, BuPu, RdPu, PuRd, OrRd, YlOrRd, YlOrBr,
+// Purples, Blues, Greens, Oranges, Reds, Greys, PuOr, BrBG, PRGn, PiYG,
+// RdBu, RdGy, RdYlBu, Spectral, RdYlGn, Accent, Dark2, Paired,
+// Pastel1, Pastel2, Set1, Set2, Set3,
+
+// -----------------------------------------------------------------------------
+
+'use strict';
+
+// -----------------------------------------------------------------------------
+// get the library modules brought in
+
+const program = require("commander");
+const getStdin = require("get-stdin");
+const yaml = require('js-yaml');
+const csvparse = require("csv-parse/lib/sync");
+const smoothing = require('svg-radar-chart/smoothing');
+const radar = require('svg-radar-chart');
+const stringify = require('virtual-dom-stringify');
+const colorbrewer = require('colorbrewer');
+
+// -----------------------------------------------------------------------------
+// nasty global variables
+// to influence the look of the chart, experiment with some of these values
+
+const SVG_HEADER = `
+<svg version="1" xmlns="http://www.w3.org/2000/svg">
+<style>
+.axis {
+    stroke-width: 0.2;
+    stroke: #555;
+}
+.scale {
+    fill: #f8f8f8 ;
+    stroke: #555;
+    stroke-width: 0.2;
+}
+.shape {
+    fill-opacity: 0.3;
+    stroke-width: 0.5;
+}
+.shape:hover {
+    fill-opacity: 0.6;
+}
+.caption {
+    font-size: 4px;
+    fill: #444;
+    font-weight: normal;
+    text-shadow: 1px 1px 0 #fff;
+}
+</style>`;
+
+const DEFAULT_COLORSET = "Set1";
+
+let legends = "";
+let basecolors = colorbrewer[DEFAULT_COLORSET]["8"];
+
+// -----------------------------------------------------------------------------
+function setColorset(colorset) {
+    let set = DEFAULT_COLORSET;
+    try {
+        if (colorbrewer[colorset]["8"].length) {
+            set = colorset;
+        }
+    } catch (e) {}
+    basecolors = colorbrewer[set]["8"];
+}
+
+// -----------------------------------------------------------------------------
+// create a legend string, its called from a forEach
+function makeLegend(value, index, ar) {
+    if (!ar[index].color) {
+        ar[index].color = basecolors[index];
+    }
+
+    if (typeof ar[index].name !== 'undefined') {
+        legends = legends + "* <c:" + ar[index].color + ">" + ar[index].name + "</c>\n";
+    }
+}
+
+//-----------------------------------------------------------------------------
+// convert input content based on its format
+
+function parse_data(content, format, separator) {
+    let data;
+
+    if (format === 'yaml') {
+        data = yaml.safeLoad(content);
+    } else {
+        const options = {
+            columns: true,
+            relax_column_count: true,
+            delimitor: separator,
+            // auto_parse_date: true,
+            trim: true,
+            auto_parse: true,
+            skip_lines_with_empty_values: true
+        };
+
+        let csv = csvparse(content, options);
+        // fields created from csv field names
+        // check samples/radar.yaml
+        // data = {
+        //     fields: (),
+        //     data: csv,
+        // };
+    }
+
+    // console.log(data);
+    return data;
+}
+
+//-----------------------------------------------------------------------------
+// get the passed arguments
+
+program
+    .arguments("")
+    .option("--has_content <n>", "show that there is something echoed in STDIN", parseInt)
+    .option("-v, --verbose", "Verbose for debugging")
+    .option("--cachedir <path>", "Where to store temp files - required")
+    .option("--doc_ref [file]", "name of the document, this is being called from")
+    .option("--scales <n>", "Number of scales to draw, defaults to 3", null, 3)
+    .option("--separator [n]", "CSV separator, defaults to '|'", String, '|')
+    .option("--colorset [n]", "Brewer colorset to use, defaults to " + DEFAULT_COLORSET, String, DEFAULT_COLORSET)
+    .option("--width [n]", "Width of the enclosing div around the SVG, defaults to 100%", String, "100%")
+    .option("--align [n]", "align created div, left, right or center, default center", String, "center")
+    .option("--format [n]", "Format of input data, yaml or csv, defaults to csv", String, "yaml")
+    .option("--smoothing [n]", "Amount of smoothing, defaults to 1", String, "1")
+    .option("--linenum [n]", "line in source document where this element started")
+    .parse(process.argv);
+
+if (program.has_content) {
+    // read from stdin
+    getStdin().then(content => {
+        try {
+            let scales = parseInt(program.scales);
+            if (isNaN(scales) || scales < 0) {
+                scales = 3;
+            } else if (scales > 10) {
+                scales = 10;
+            }
+            setColorset(program.colorset);
+
+            // default align center
+            let align = "margin: 0 auto;";
+            if (program.align) {
+                if (program.align === 'left') {
+                    align = "margin-left: 0 ; margin-right: auto;";
+                } else if (program.align === 'right') {
+                    align = "margin-left: auto; margin-right 0;";
+                }
+            }
+
+            // max smoothing
+            if (program.smoothing > 1) {
+                program.smoothing = 0.1;
+            } else if (program.smoothing < 0) { // min smoothing
+                program.smoothing = 0;
+            }
+
+            // console.log("separator is '" + program.separator + "'");
+
+            let data = parse_data(content, program.format, program.separator);
+            // console.log(data);
+            // this will also add color to those entries that do not have it
+            data.data.forEach(makeLegend);
+
+            const chart = radar(data.fields, data.data, {
+                size: 100, // size of the chart (including captions)
+                smoothing: smoothing(program.smoothing),
+                axes: true, // show axes?
+                scales: scales, // show scale circles?
+                captions: true, // show captions?
+                captionsPosition: 1.2, // where on the axes are the captions?
+                axisProps: () => ({
+                    className: 'axis'
+                }),
+                scaleProps: () => ({
+                    className: 'scale',
+                    fill: 'none'
+                }),
+                shapeProps: (data) => ({
+                    className: 'shape',
+                    fill: data.color,
+                    stroke: data.color
+                }),
+                captionProps: (data) => ({
+                    className: 'caption',
+                    textAnchor: 'middle',
+                    fontSize: 3,
+                    fontFamily: 'sans-serif'
+                })
+            });
+            const svg = `<div style="width:${program.width};${align}">` +
+                `${SVG_HEADER}${stringify(chart)}</svg>\n\n${legends}</div>`;
+
+            process.stdout.write(svg);
+        } catch (e) {
+            // process.stdout.write( "~~~~{.info icon=1 title='Could not parse YAML content'}\n" + e + "\n~~~~\n\n") ;
+            process.stdout.write("ERROR: Could not parse content... " + e + "\n\n");
+        }
+
+        // process.stdout.write("do not print trailing line feed") ;
+    });
+} else {
+    // so things may not require the content, or do something differently
+}

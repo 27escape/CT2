@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>%TITLE%</title>
+        <meta name="Created" content="%DATE%" />
+        <meta name="Author" content="%AUTHOR%" />
+        <meta name="Copyright" content="%COPYRIGHT%" />
+        <meta name="summary" content="%SUMMARY%" />
+        <meta name="keywords" content="%KEYWORDS%" />
+        <meta name="revision" content="%REVISION%" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+
+<!-- <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'> -->
+<!-- monofont -->
+<link href='http://fonts.googleapis.com/css?family=Cousine' rel='stylesheet' type='text/css'>
+<!-- bodyfont -->
+<!-- <link href='http://fonts.googleapis.com/css?family=Raleway+Dots' rel='stylesheet' type='text/css'> -->
+<link href='http://fonts.googleapis.com/css?family=Megrim' rel='stylesheet' type='text/css'>
+        %GOOGLE_FONT%
+
+        %JAVASCRIPT%
+
+        <style type='text/css'>
+            @page {
+                margin: 90pt 30pt 40pt 30pt ;
+                @top {
+                    margin: -10pt 0pt 0pt -90pt ;
+                }
+                @bottom-right { content: counter(page) ;}
+            }
+
+            %CSS%
+
+            blockquote {
+                font-family: helvetica;
+                font-style: italic;
+                font-size: 14px;
+                margin: 1em 3em;
+                padding: .5em 1em;
+                border-left: 5px solid #fce27c;
+                background-color: #f6ebc1;
+            }
+
+            blockquote p {
+                margin: 0;
+            }
+            body {font-style: sans-serif;}
+            /* toc */
+            #toc p {
+                color: #4f81bd;
+                font-weight: bold;
+                font-size: 32;
+            }
+
+            /* tables*/
+            table { page-break-inside: avoid ;}
+            table.md {
+                border: 1px black solid;
+                border-collapse: collapse;
+                border-spacing: 0px;
+                padding-bottom:20px;
+            }
+            table.md th {
+                background-color:yellowgreen;
+                font-weight: bold;
+                border: 1px black solid;
+            }
+            table.md tr { vertical-align:top;}
+            table.md tr.odd { background-color: white;}
+            table.md tr.even {background-color: #F0FFF0;}
+            table.md td {
+                border: 1px black solid;
+                padding-left:10px;
+                padding-right:10px;
+            }
+
+            table.footer { font-size: 10px; width: 100%;}
+            table.footer td.commercial {
+                font-weight: bold;
+                font-size: 12px;
+                text-align: center;
+            }
+
+            /* style for boxes */
+            div.box {
+                background-color: #eeeeee;
+                margin: 0 auto ;
+            }
+            div.box p {
+                width: 100% ;
+                padding: 5px;
+                margin: 0 auto ;
+                background-color: #eeeeee;
+            }
+            div.box p.box_header   {
+                background-color: black ;
+                color: white;
+                font-weight: bold;
+                margin-top: 0px ;
+            }
+
+        </style>
+    </head>
+    <body>
+        <h1>%TITLE%</h1>
+        <!-- remove this if you do not need a Table of Contents -->
+        %TOC%
+
+        %_CONTENTS_%
+
+        <table class='footer' width='100%'>
+            <tr><td>(c) %COPYRIGHT%</td><td align='right'>%DATE%</td>
+        </table>
+    </body>
+</html>

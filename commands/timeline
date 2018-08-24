@@ -1,0 +1,159 @@
+// #!/usr/bin/env nodejs
+// run a node application to solve a plugin request for ct2
+// create a gantt chart of some form
+// https://github.com/substack/gantt-chart
+// https://www.npmjs.com/package/d3-gantt-chart
+
+// testing
+// echo samples/timeline.csv | node node --has_content=1 --cachedir=/tmp
+
+// install gantt-chart
+// sudo npm install -g commander get-stdin
+// sudo npm install -g gantt-chart
+// and supporting things
+// sudo npm install -g virtual-dom-stringify csv csv-parse tracer
+// https://github.com/baryon/tracer
+// tracer can do proper logging!
+var logger = require("tracer").colorConsole();
+
+var program = require("commander");
+const getStdin = require("get-stdin");
+var str = require("virtual-dom-stringify");
+var gantt = require("gantt-chart");
+// lets use syncronous API for simplicity
+var csvparse = require("csv-parse/lib/sync");
+
+//-----------------------------------------------------------------------------
+// get the passed arguments
+// 'has_content=i' => 'show that there is something echoed in STDIN',
+// 'doc_ref=s'     => 'name of the document, this is being called from',
+// 'cachedir=s' => {desc => 'Where to store temp files', required => 1},
+// 'verbose|v' => 'Verbose for debugging',
+
+// content format
+// The gantt content consists of rows of lines with a task id, a task name, a task group,
+// start and end times and optionally dependencies and percent completed.
+
+// Dates should be in yyyy-mm-dd format.
+
+// ~~~~{.buffer to_buffer=gantt}
+// 1, count, Sums, 2015-10-28, 2015-10-29
+// 2, add one, Summs, 2015-10-29, 2015-10-30, 1
+// 3, add two, Sums, 2015-11-01, 2015-11-03, "1,2"
+// 4, Overall, Website, 2015-10-20, 2015-10-29, , 23
+// 5, route /index, Website, 2015-10-23, 2015-10-24
+// 6, route /help, Website, 2015-10-20, 2015-10-22, , 100
+// 7, route /about, Website, 2015-10-24, 2015-10-29, 5, 30
+// ~~~~
+
+program
+    .arguments("")
+    .description("Draw a basic gantt chart for ct2")
+    .option(
+        "--has_content <n>",
+        "show that there is something echoed in STDIN",
+        parseInt
+    )
+    .option("-v, --verbose", "Verbose for debugging")
+    .option("--cachedir <path>", "Where to store temp files - required")
+    .option(
+        "--doc_ref [file]",
+        "name of the document, this is being called from"
+    )
+    .parse(process.argv);
+
+if (program.has_content) {
+    // read from stdin
+    getStdin().then(content => {
+        if (program.verbose) {
+            // console.error(content);
+        }
+        content =
+            '1, count, Sums, 2015-10-28, 2015-10-29\n2, add one, Summs, 2015-10-29, 2015-10-30, 1\n3, add two, Sums, 2015-11-01, 2015-11-03, "1,2"\n4, Overall, Website, 2015-10-20, 2015-10-29, , 23\n5, route /index, Website, 2015-10-23, 2015-10-24\n6, route /help, Website, 2015-10-20, 2015-10-22, , 100\n7, route /about, Website, 2015-10-24, 2015-10-29, 5, 30\n';
+        // if we build a header into the content, this will help playing with it
+        var header =
+            "id,taskname,taskgroup,startdate,enddate,depends,completed\n";
+        var csv = header.concat(content);
+        if (program.verbose) {
+            logger.info(csv);
+        }
+        // http://csv.adaltas.com/parse/
+        var data = csvparse(csv, {
+            columns: true,
+            relax_column_count: true,
+            // delimitor: ',',
+            auto_parse_date: true,
+            trim: true,
+            auto_parse: true,
+            skip_lines_with_empty_values: true
+        });
+
+        // split each line of content and build the data structure
+        // task id, a task name, a task group, start-time, end-time, dependencies,percent completed.
+        // 3, add two, Sums, 2015-11-01, 2015-11-03, "1,2"
+
+        //for loop, if we did this async this may not be needed
+        for (var i = 0; i < data.length; i++) {
+            // logger.log("loop " + i + " type " + typeof data[i].depends);
+            // convert depends into dependencies array
+
+            if (data[i].startdate && data[i].enddate) {
+                data[i].duration = parseInt(
+                    (data[i].enddate - data[i].startdate) /
+                    (1000 * 24 * 60 * 60)
+                );
+                // delete data[i].startdate;
+                // delete data[i].enddate;
+            }
+            if (data[i].depends) {
+                logger.log(i + " has depends - ", data[i]);
+                data[i].dependencies = [];
+                if (typeof data[i].depends === "string") {
+                    data[i].dependencies = data[i].depends.split(",");
+                    logger.log("depends ", data[i].dependencies);
+                } else if (typeof data[i].depends === "number") {
+                    data[i].dependencies = [data[i].depends];
+                }
+            }
+            delete data[i].depends;
+        }
+        logger.log("data is\n", data);
+
+        // after all lines processed, figure out dependencies, incase the were mentioned previously
+        // though we could always force dependencies only on things that have been mentioned previously
+        // if that is easier
+
+        // {
+        //     "wow": {
+        //         "dependencies": [ "amaze" ],
+        //         "duration": "1 week"
+        //     },
+        //     "amaze": {
+        //         "duration": "3 days"
+        //     },
+        //     "cool": {
+        //         "duration": "6 days"
+        //     },
+        //     "whatever": {
+        //         "duration": "1 day",
+        //         "dependencies": [ "wow" ]
+        //     },
+        //     "very": {
+        //         "duration": "2 days",
+        //         "dependencies": [ "amaze" ]
+        //     },
+        //     "great": {
+        //         "duration": "8 days",
+        //         "dependencies": [ "very" ]
+        //     }
+        // }
+
+        var built_data = {};
+
+        var g = gantt(built_data);
+        //do not print trailing line feed
+        process.stdout.write(str(g.tree()));
+    });
+} else {
+    // so things may not require the content, or do something differently
+}

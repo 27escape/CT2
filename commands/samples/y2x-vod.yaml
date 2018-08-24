@@ -1,0 +1,17 @@
+vod:
+  filename: "123456_abcwarriors.ts"
+  vod_type: svod
+  type: film
+  encrypted: true
+  image: "123456_abcwarriors.png"
+  title: ABC Warriors
+  synopsis: Introduces Joe Pineapples and Happy Shrapnel
+  avail_from: "2018-03-28"
+  avail_to: "2019-03-27"
+  rating: "TV-C"
+  genres:
+    genre: ["SciFi", "Action"]
+  duration: 3600
+  priority: true
+  year: 2000
+  actors: "Brad Pitt, Angelina Jolie, Will Smith"
